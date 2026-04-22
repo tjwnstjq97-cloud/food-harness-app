@@ -10,7 +10,8 @@ interface MapConfig {
   isNaverMap: boolean;
   isGoogleMap: boolean;
   provider: "naver" | "google";
-  searchApiBase: string;
+  searchFunctionName: "search-restaurant";
+  searchApiPath: "/functions/v1/search-restaurant";
 }
 
 /**
@@ -29,9 +30,8 @@ export function useMap(): MapConfig {
     isNaverMap: isKR,
     isGoogleMap: isGlobal,
     provider: isKR ? "naver" : "google",
-    // Edge Function 경유 — 클라이언트에서 직접 호출 금지
-    searchApiBase: isKR
-      ? "/functions/v1/search-naver"
-      : "/functions/v1/search-google",
+    // Edge Function 경유 — 실제 provider 분기는 함수 body의 region으로 처리한다.
+    searchFunctionName: "search-restaurant",
+    searchApiPath: "/functions/v1/search-restaurant",
   };
 }
