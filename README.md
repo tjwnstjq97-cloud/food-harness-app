@@ -1,5 +1,7 @@
 # Food Harness App
 
+[![Check](https://github.com/tjwnstjq97-cloud/food-harness-app/actions/workflows/check.yml/badge.svg)](https://github.com/tjwnstjq97-cloud/food-harness-app/actions/workflows/check.yml)
+
 음식점 탐색, 리뷰 요약, 예약/웨이팅 확인, 즐겨찾기와 방문 기록을 한 흐름으로 묶는 Expo 기반 모바일 앱입니다. 국내는 네이버, 해외는 Google 기반으로 검색과 지도 동작을 분기합니다.
 
 ## Status
@@ -112,12 +114,10 @@ docs/                Architecture and testing notes
 
 ## Current Next Work
 
-- 배너 이미지 최적화 또는 더 앱다운 일러스트로 교체
-- 따뜻한 `Cozy Map Insight` 디자인 토큰 정리
-- 홈 화면과 상세 페이지 리디자인
+- 상세 페이지 `Cozy Map Insight` 리디자인
 - 검색 결과 카드 정보 강화
-- GitHub Actions CI 추가
 - 지도 탭 실제 UI 뼈대 구현
+- 더 앱다운 배너 일러스트 후보 검토 후 교체 여부 결정
 
 ## Handoff
 

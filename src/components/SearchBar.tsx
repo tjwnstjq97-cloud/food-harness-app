@@ -9,6 +9,7 @@ import {
   Text,
   StyleSheet,
 } from "react-native";
+import { cozyTheme } from "../utils/theme";
 
 interface SearchBarProps {
   value: string;
@@ -57,31 +58,31 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    backgroundColor: "#fff",
+    backgroundColor: cozyTheme.colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: "#eee",
+    borderBottomColor: cozyTheme.colors.border,
   },
   input: {
     flex: 1,
     height: 44,
     borderWidth: 1,
-    borderColor: "#ddd",
+    borderColor: cozyTheme.colors.border,
     borderRadius: 10,
     paddingHorizontal: 14,
     fontSize: 15,
-    backgroundColor: "#f8f8f8",
-    color: "#1a1a1a",
+    backgroundColor: cozyTheme.colors.surfaceSoft,
+    color: cozyTheme.colors.text,
   },
   button: {
     height: 44,
     paddingHorizontal: 18,
-    backgroundColor: "#FF6B35",
+    backgroundColor: cozyTheme.colors.primary,
     borderRadius: 10,
     justifyContent: "center",
     alignItems: "center",
   },
   buttonDisabled: {
-    backgroundColor: "#ffc4ad",
+    backgroundColor: cozyTheme.colors.primarySoft,
   },
   buttonText: {
     color: "#fff",

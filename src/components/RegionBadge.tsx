@@ -5,6 +5,7 @@
  */
 import { View, Text, StyleSheet } from "react-native";
 import type { Region } from "../types/region";
+import { cozyTheme } from "../utils/theme";
 
 interface RegionBadgeProps {
   region: Region;
@@ -17,8 +18,20 @@ export function RegionBadge({ region, size = "sm" }: RegionBadgeProps) {
   const label = isKR ? "🇰🇷 KR" : "🌏 GLOBAL";
 
   return (
-    <View style={[styles.badge, size === "md" && styles.badgeMd]}>
-      <Text style={[styles.text, size === "md" && styles.textMd]}>
+    <View
+      style={[
+        styles.badge,
+        isKR ? styles.badgeKR : styles.badgeGlobal,
+        size === "md" && styles.badgeMd,
+      ]}
+    >
+      <Text
+        style={[
+          styles.text,
+          isKR ? styles.textKR : styles.textGlobal,
+          size === "md" && styles.textMd,
+        ]}
+      >
         {label}
       </Text>
     </View>
@@ -29,7 +42,7 @@ export function RegionBadge({ region, size = "sm" }: RegionBadgeProps) {
 export function RegionLabel({ region }: { region: Region }) {
   const isKR = region === "KR";
   return (
-    <Text style={styles.labelText}>
+    <Text style={[styles.labelText, isKR ? styles.textKR : styles.textGlobal]}>
       {isKR ? "네이버 기반 검색" : "구글 기반 검색"}
     </Text>
   );
@@ -37,12 +50,13 @@ export function RegionLabel({ region }: { region: Region }) {
 
 const styles = StyleSheet.create({
   badge: {
-    backgroundColor: "#FFF0EB",
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 8,
     alignSelf: "flex-start",
   },
+  badgeKR: { backgroundColor: cozyTheme.colors.krSoft },
+  badgeGlobal: { backgroundColor: cozyTheme.colors.globalSoft },
   badgeMd: {
     paddingHorizontal: 12,
     paddingVertical: 5,
@@ -50,15 +64,15 @@ const styles = StyleSheet.create({
   },
   text: {
     fontSize: 11,
-    color: "#FF6B35",
     fontWeight: "600",
   },
+  textKR: { color: cozyTheme.colors.kr },
+  textGlobal: { color: cozyTheme.colors.global },
   textMd: {
     fontSize: 13,
   },
   labelText: {
     fontSize: 13,
-    color: "#FF6B35",
     fontWeight: "500",
   },
 });

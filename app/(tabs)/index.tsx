@@ -43,11 +43,13 @@ import {
 import type { Restaurant } from "../../src/types/restaurant";
 import { localizeCategory } from "../../src/utils/categoryMap";
 import { HighlightText } from "../../src/components/HighlightText";
+import { cozyTheme } from "../../src/utils/theme";
 
 const SEARCH_SUGGESTIONS_KR = ["명동", "강남", "홍대", "이태원", "을지로"];
 const SEARCH_SUGGESTIONS_GLOBAL = ["sushi", "pizza", "ramen", "bbq", "cafe"];
 const MIN_DEBOUNCE_LEN = 2;
 const PAGE_SIZE = 30;
+const colors = cozyTheme.colors;
 
 export default function HomeScreen() {
   const [query, setQuery] = useState("");
@@ -216,12 +218,19 @@ export default function HomeScreen() {
       <View style={styles.header}>
         <Text style={styles.headerTitle}>음식점 탐색</Text>
         <TouchableOpacity
-          style={styles.regionBadge}
+          style={[
+            styles.regionBadge,
+            isKR ? styles.regionBadgeKR : styles.regionBadgeGlobal,
+          ]}
           onPress={handleRegionToggle}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
-          <Text style={styles.regionText}>{isKR ? "🇰🇷 KR" : "🌏 GLOBAL"}</Text>
-          <Text style={styles.regionToggleHint}>전환</Text>
+          <Text style={[styles.regionText, isKR ? styles.regionTextKR : styles.regionTextGlobal]}>
+            {isKR ? "🇰🇷 KR" : "🌏 GLOBAL"}
+          </Text>
+          <Text style={[styles.regionToggleHint, isKR ? styles.regionTextKR : styles.regionTextGlobal]}>
+            전환
+          </Text>
         </TouchableOpacity>
       </View>
 
@@ -409,8 +418,8 @@ export default function HomeScreen() {
                 <RefreshControl
                   refreshing={refreshing}
                   onRefresh={handleRefresh}
-                  tintColor="#FF6B35"
-                  colors={["#FF6B35"]}
+                  tintColor={colors.primary}
+                  colors={[colors.primary]}
                 />
               }
               ListFooterComponent={
@@ -435,7 +444,7 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f5f5f5" },
+  container: { flex: 1, backgroundColor: colors.background },
 
   header: {
     flexDirection: "row",
@@ -444,11 +453,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 16,
     paddingBottom: 8,
-    backgroundColor: "#fff",
+    backgroundColor: colors.surface,
   },
-  headerTitle: { fontSize: 22, fontWeight: "bold", color: "#1a1a1a" },
+  headerTitle: { fontSize: 22, fontWeight: "bold", color: colors.text },
   regionBadge: {
-    backgroundColor: "#FFF0EB",
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
@@ -456,16 +464,20 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 4,
   },
-  regionText: { fontSize: 12, color: "#FF6B35", fontWeight: "600" },
-  regionToggleHint: { fontSize: 10, color: "#FF6B35", opacity: 0.6 },
+  regionBadgeKR: { backgroundColor: colors.krSoft },
+  regionBadgeGlobal: { backgroundColor: colors.globalSoft },
+  regionText: { fontSize: 12, fontWeight: "600" },
+  regionTextKR: { color: colors.kr },
+  regionTextGlobal: { color: colors.global },
+  regionToggleHint: { fontSize: 10, opacity: 0.62 },
 
   /* 최근 검색어 */
   recentSection: {
-    backgroundColor: "#fff",
+    backgroundColor: colors.surface,
     paddingTop: 12,
     paddingBottom: 8,
     borderBottomWidth: 1,
-    borderBottomColor: "#eee",
+    borderBottomColor: colors.border,
   },
   recentHeader: {
     flexDirection: "row",
@@ -474,13 +486,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     marginBottom: 8,
   },
-  recentTitle: { fontSize: 13, fontWeight: "600", color: "#555" },
-  clearAll: { fontSize: 12, color: "#FF6B35" },
+  recentTitle: { fontSize: 13, fontWeight: "600", color: colors.textMuted },
+  clearAll: { fontSize: 12, color: colors.primary },
   recentList: { paddingHorizontal: 12, gap: 8 },
   recentChipWrapper: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#f5f5f5",
+    backgroundColor: colors.surfaceMuted,
     borderRadius: 16,
     paddingLeft: 12,
     paddingRight: 4,
@@ -488,8 +500,8 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   recentChip: { justifyContent: "center" },
-  recentChipText: { fontSize: 13, color: "#333" },
-  recentChipTime: { fontSize: 10, color: "#aaa", marginTop: 1 },
+  recentChipText: { fontSize: 13, color: colors.text },
+  recentChipTime: { fontSize: 10, color: colors.textSubtle, marginTop: 1 },
   removeChip: {
     width: 20,
     height: 20,
@@ -497,7 +509,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginLeft: 6,
   },
-  removeChipText: { fontSize: 14, color: "#aaa" },
+  removeChipText: { fontSize: 14, color: colors.textSubtle },
 
   /* 힌트 */
   hint: {
@@ -514,24 +526,19 @@ const styles = StyleSheet.create({
     aspectRatio: 2.05,
     borderRadius: 12,
     marginBottom: 8,
-    backgroundColor: "#F7F1E7",
+    backgroundColor: colors.background,
   },
   hintTitle: {
     fontSize: 20,
-    color: "#2F2A24",
+    color: colors.text,
     fontWeight: "800",
     textAlign: "center",
   },
-  hintSub: { fontSize: 13, color: "#999", marginBottom: 8 },
+  hintSub: { fontSize: 13, color: colors.textSubtle, marginBottom: 8 },
 
   /* 검색 제안 */
   emptyWrapper: { flex: 1, alignItems: "center" },
-  suggestionTitle: {
-    fontSize: 13,
-    color: "#aaa",
-    marginTop: 4,
-    marginBottom: 10,
-  },
+  suggestionTitle: { fontSize: 13, color: colors.textSubtle, marginTop: 4, marginBottom: 10 },
   suggestionRow: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -542,12 +549,12 @@ const styles = StyleSheet.create({
   suggestionChip: {
     paddingHorizontal: 14,
     paddingVertical: 7,
-    backgroundColor: "#fff",
+    backgroundColor: colors.surface,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#e0e0e0",
+    borderColor: colors.border,
   },
-  suggestionText: { fontSize: 13, color: "#555" },
+  suggestionText: { fontSize: 13, color: colors.textMuted },
 
   /* 결과 헤더 */
   resultHeader: {
@@ -557,14 +564,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
   },
-  resultCount: { fontSize: 12, color: "#888" },
-  clearSearch: { fontSize: 12, color: "#FF6B35" },
+  resultCount: { fontSize: 12, color: colors.textSubtle },
+  clearSearch: { fontSize: 12, color: colors.primary },
 
   /* 카테고리 필터 칩 */
   categoryChipScroll: {
-    backgroundColor: "#fff",
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: "#eee",
+    borderBottomColor: colors.border,
   },
   categoryChipList: {
     paddingHorizontal: 12,
@@ -575,16 +582,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
-    backgroundColor: "#f0f0f0",
+    backgroundColor: colors.surfaceMuted,
     borderWidth: 1,
     borderColor: "transparent",
   },
   categoryChipActive: {
-    backgroundColor: "#FFF0EB",
-    borderColor: "#FF6B35",
+    backgroundColor: colors.primarySurface,
+    borderColor: colors.primary,
   },
-  categoryChipText: { fontSize: 12, color: "#555", fontWeight: "500" },
-  categoryChipTextActive: { color: "#FF6B35", fontWeight: "700" },
+  categoryChipText: { fontSize: 12, color: colors.textMuted, fontWeight: "500" },
+  categoryChipTextActive: { color: colors.primary, fontWeight: "700" },
 
   /* 결과 목록 */
   list: { paddingHorizontal: 12, paddingBottom: 24, gap: 8, paddingTop: 4 },
@@ -594,21 +601,21 @@ const styles = StyleSheet.create({
     marginTop: 8,
     paddingVertical: 12,
     alignItems: "center",
-    backgroundColor: "#fff",
+    backgroundColor: colors.surface,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#e0e0e0",
+    borderColor: colors.border,
   },
-  loadMoreText: { fontSize: 14, color: "#FF6B35", fontWeight: "600" },
+  loadMoreText: { fontSize: 14, color: colors.primary, fontWeight: "600" },
 
   /* 카드 */
   card: {
-    backgroundColor: "#fff",
+    backgroundColor: colors.surface,
     borderRadius: 12,
     padding: 14,
-    shadowColor: "#000",
+    shadowColor: cozyTheme.shadow.color,
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
+    shadowOpacity: cozyTheme.shadow.opacity,
     shadowRadius: 4,
     elevation: 2,
     gap: 4,
@@ -622,17 +629,17 @@ const styles = StyleSheet.create({
   restaurantName: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#1a1a1a",
+    color: colors.text,
     flex: 1,
   },
   cardBadge: {
-    backgroundColor: "#FFF0EB",
+    backgroundColor: colors.primarySurface,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 8,
   },
-  cardBadgeText: { fontSize: 11, color: "#FF6B35", fontWeight: "600" },
-  address: { fontSize: 13, color: "#777" },
-  phone: { fontSize: 12, color: "#aaa" },
-  tapHint: { fontSize: 11, color: "#ccc", textAlign: "right" },
+  cardBadgeText: { fontSize: 11, color: colors.primary, fontWeight: "600" },
+  address: { fontSize: 13, color: colors.textMuted },
+  phone: { fontSize: 12, color: colors.textSubtle },
+  tapHint: { fontSize: 11, color: colors.textSubtle, textAlign: "right" },
 });

@@ -9,7 +9,7 @@
 - GitHub: https://github.com/tjwnstjq97-cloud/food-harness-app
 - Visibility: public
 - Main branch: `main`
-- Latest pushed commit at handoff: `fdba0d2 Add cozy discovery banner`
+- Latest pushed commit at handoff: check `git log --oneline -5`
 
 ## Current State
 
@@ -19,7 +19,10 @@
 - 검색, 상세, 즐겨찾기, 프로필/방문기록, 지도 placeholder 구현
 - 리뷰 장점/아쉬운 점 키워드 칩 구현
 - 홈 첫 화면에 cozy discovery banner 적용
+- Cozy design tokens added in `src/utils/theme.ts`
+- Home screen, search bar, and region badge partially restyled with cozy palette
 - Splash/adaptive icon background: `#F7F1E7`
+- GitHub Actions check workflow added
 
 ## Verification
 
@@ -87,6 +90,21 @@ npm run check
 - Committed selected asset as `assets/images/discovery-banner.png`.
 - Applied it to the home empty state / first search screen.
 - Changed app splash/adaptive icon background to warm ivory.
+- Optimized the committed banner from about 2 MB to about 1 MB.
+
+### Cozy Theme Pass
+
+- Added `src/utils/theme.ts`.
+- Started centralizing colors for warm ivory, sage, clay orange, charcoal, positive, and negative chips.
+- Applied the new palette to:
+  - `app/(tabs)/index.tsx`
+  - `src/components/SearchBar.tsx`
+  - `src/components/RegionBadge.tsx`
+
+### CI
+
+- Added `.github/workflows/check.yml`.
+- Runs `npm ci` and `npm run check` on push/PR to `main`.
 
 ### Design Exploration
 
@@ -107,6 +125,7 @@ Generated mockups/images:
 - Several preview images exist under `/Users/seojunseop/.codex/generated_images/...`.
 - Only `assets/images/discovery-banner.png` is committed.
 - A newer "less AI-looking" banner preview was generated after the committed one, but it has not been selected, copied into the project, or committed yet.
+- User asked to avoid committing new creative-direction choices without review. Leave candidate creative assets as recommendations until selected.
 
 ## Copyright / Asset Notes
 
@@ -140,22 +159,21 @@ npm run deploy:fn
 
 Recommended next order:
 
-1. Optimize or replace `assets/images/discovery-banner.png`.
-   - Current file is about 2 MB.
-   - User wants a less AI-looking, more normal app-style illustration.
-2. Add shared theme tokens.
-   - Create a central palette for ivory/sage/clay/charcoal.
-   - Replace repeated hard-coded colors gradually.
-3. Restyle home screen to match the cozy banner.
-   - Background, search area, chips, recent search section.
-4. Redesign restaurant detail page using `Cozy Map Insight`.
+1. Redesign restaurant detail page using `Cozy Map Insight`.
    - Header, action bar, decision dashboard, review chips, menu preview.
-5. Enhance search result cards.
+2. Enhance search result cards.
    - Rating, review count, representative menu, waiting, reservation status.
-6. Add GitHub Actions CI.
-   - Run `npm run check` on push/PR.
-7. Prepare map tab real UI.
+3. Prepare map tab real UI.
    - SDK can come later; first build map-like layout and result handoff.
+4. Continue replacing hard-coded colors with `src/utils/theme.ts`.
+5. Add README screenshots or app screenshots after user approves visual direction.
+6. Review the less AI-looking banner candidate and decide whether to replace the committed banner.
+
+## Recommendations Waiting For User Decision
+
+- Whether to replace `assets/images/discovery-banner.png` with the newer less-AI-looking banner candidate.
+- Whether app icon/splash should use the globe/speech-bubble motif or a simpler custom mark.
+- Exact final detail-page visual density before a full redesign pass.
 
 ## Work To Avoid For Now
 
@@ -163,4 +181,3 @@ Recommended next order:
 - Do not add a separate "menu recommendation" feature; menu/representative menu already covers it.
 - Do not overcomplicate the banner with too many symbols or decorative clutter.
 - Do not commit `.env`, `.expo`, `ios/`, `node_modules/`, or generated defaults outside selected assets.
-
