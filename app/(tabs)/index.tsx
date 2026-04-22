@@ -22,6 +22,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   RefreshControl,
+  Image,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useRegion } from "../../src/providers/RegionProvider";
@@ -317,7 +318,12 @@ export default function HomeScreen() {
       {/* 힌트 */}
       {showHint && (
         <View style={styles.hint}>
-          <Text style={styles.hintIcon}>🍽️</Text>
+          <Image
+            source={require("../../assets/images/discovery-banner.png")}
+            style={styles.heroBanner}
+            resizeMode="cover"
+          />
+          <Text style={styles.hintTitle}>어디가 좋을지 물어보세요</Text>
           <RegionLabel region={region} />
           <Text style={styles.hintSub}>검색어를 입력하면 자동으로 검색됩니다</Text>
           <View style={styles.suggestionRow}>
@@ -496,12 +502,26 @@ const styles = StyleSheet.create({
   /* 힌트 */
   hint: {
     flex: 1,
-    justifyContent: "center",
+    justifyContent: "flex-start",
     alignItems: "center",
     gap: 10,
-    paddingHorizontal: 24,
+    paddingHorizontal: 16,
+    paddingTop: 28,
   },
-  hintIcon: { fontSize: 48, marginBottom: 4 },
+  heroBanner: {
+    width: "100%",
+    maxWidth: 420,
+    aspectRatio: 2.05,
+    borderRadius: 12,
+    marginBottom: 8,
+    backgroundColor: "#F7F1E7",
+  },
+  hintTitle: {
+    fontSize: 20,
+    color: "#2F2A24",
+    fontWeight: "800",
+    textAlign: "center",
+  },
   hintSub: { fontSize: 13, color: "#999", marginBottom: 8 },
 
   /* 검색 제안 */
