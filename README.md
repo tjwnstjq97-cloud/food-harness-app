@@ -112,7 +112,13 @@ docs/                Architecture and testing notes
 
 ## Current Next Work
 
-- GitHub remote 연결과 push
-- 네이티브 지도 탭 구현
-- 리뷰 장점/단점 하이라이트 고도화
-- 실기기 dev build 회귀 테스트
+- 배너 이미지 최적화 또는 더 앱다운 일러스트로 교체
+- 따뜻한 `Cozy Map Insight` 디자인 토큰 정리
+- 홈 화면과 상세 페이지 리디자인
+- 검색 결과 카드 정보 강화
+- GitHub Actions CI 추가
+- 지도 탭 실제 UI 뼈대 구현
+
+## Handoff
+
+다른 환경에서 이어서 작업할 때는 [docs/handoff.md](docs/handoff.md)를 먼저 확인하세요.
