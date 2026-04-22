@@ -485,6 +485,50 @@ export default function RestaurantDetailScreen() {
               <Text style={styles.reviewNote}>
                 * 출처 있는 리뷰만 표시됩니다.
               </Text>
+              {reviewData.highlights.length > 0 && (
+                <View style={styles.highlightSection}>
+                  {reviewData.highlights.some((h) => h.sentiment === "positive") && (
+                    <View style={styles.highlightGroup}>
+                      <Text style={styles.highlightTitle}>장점</Text>
+                      <View style={styles.highlightChips}>
+                        {reviewData.highlights
+                          .filter((h) => h.sentiment === "positive")
+                          .map((highlight) => (
+                            <View
+                              key={`positive-${highlight.keyword}`}
+                              style={[styles.highlightChip, styles.positiveHighlightChip]}
+                            >
+                              <Text style={styles.positiveHighlightText}>
+                                {highlight.keyword}
+                                {highlight.count > 1 ? ` ${highlight.count}` : ""}
+                              </Text>
+                            </View>
+                          ))}
+                      </View>
+                    </View>
+                  )}
+                  {reviewData.highlights.some((h) => h.sentiment === "negative") && (
+                    <View style={styles.highlightGroup}>
+                      <Text style={styles.highlightTitle}>아쉬운 점</Text>
+                      <View style={styles.highlightChips}>
+                        {reviewData.highlights
+                          .filter((h) => h.sentiment === "negative")
+                          .map((highlight) => (
+                            <View
+                              key={`negative-${highlight.keyword}`}
+                              style={[styles.highlightChip, styles.negativeHighlightChip]}
+                            >
+                              <Text style={styles.negativeHighlightText}>
+                                {highlight.keyword}
+                                {highlight.count > 1 ? ` ${highlight.count}` : ""}
+                              </Text>
+                            </View>
+                          ))}
+                      </View>
+                    </View>
+                  )}
+                </View>
+              )}
             </View>
 
             {/* 긍정 리뷰 카드 */}
@@ -718,6 +762,39 @@ const styles = StyleSheet.create({
   sentimentItem: { flexDirection: "row", alignItems: "center", gap: 4 },
   sentimentCount: { fontSize: 14, color: "#555" },
   reviewNote: { fontSize: 11, color: "#aaa" },
+  highlightSection: {
+    borderTopWidth: 1,
+    borderTopColor: "#f0f0f0",
+    paddingTop: 10,
+    gap: 10,
+  },
+  highlightGroup: { gap: 6 },
+  highlightTitle: { fontSize: 12, color: "#777", fontWeight: "700" },
+  highlightChips: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  highlightChip: {
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 7,
+    borderWidth: 1,
+  },
+  positiveHighlightChip: {
+    backgroundColor: "#E8F5E9",
+    borderColor: "#C8E6C9",
+  },
+  negativeHighlightChip: {
+    backgroundColor: "#FFEBEE",
+    borderColor: "#FFCDD2",
+  },
+  positiveHighlightText: {
+    fontSize: 12,
+    color: "#2E7D32",
+    fontWeight: "700",
+  },
+  negativeHighlightText: {
+    fontSize: 12,
+    color: "#C62828",
+    fontWeight: "700",
+  },
   emptyCard: { alignItems: "center", paddingVertical: 20, gap: 6 },
   emptyIcon: { fontSize: 32 },
   noDataText: { fontSize: 14, color: "#999", fontWeight: "500" },

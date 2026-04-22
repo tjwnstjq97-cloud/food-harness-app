@@ -10,7 +10,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import { filterValidReviews } from "../utils/validators";
-import type { Review, ReviewSummary } from "../types/restaurant";
+import type { Review, ReviewHighlight, ReviewSentiment, ReviewSummary } from "../types/review";
 
 const EMPTY_SUMMARY: ReviewSummary = {
   totalCount: 0,
@@ -23,6 +23,62 @@ const EMPTY_SUMMARY: ReviewSummary = {
   neutralReviews: [],
   highlights: [],
 };
+
+interface KeywordRule {
+  keyword: string;
+  patterns: string[];
+}
+
+const POSITIVE_KEYWORDS: KeywordRule[] = [
+  { keyword: "맛", patterns: ["맛", "delicious", "perfect", "amazing"] },
+  { keyword: "국물", patterns: ["국물", "broth"] },
+  { keyword: "면발", patterns: ["면발", "noodle"] },
+  { keyword: "만두", patterns: ["만두"] },
+  { keyword: "가성비", patterns: ["가성비", "합리적", "value"] },
+  { keyword: "신선도", patterns: ["신선", "fresh"] },
+  { keyword: "친절", patterns: ["친절", "설명", "kind", "friendly"] },
+  { keyword: "분위기", patterns: ["분위기", "concept", "experience"] },
+  { keyword: "소스", patterns: ["소스", "sauce"] },
+  { keyword: "패티", patterns: ["패티", "patty"] },
+  { keyword: "바삭함", patterns: ["바삭", "crispy"] },
+  { keyword: "퀄리티", patterns: ["퀄리티", "quality"] },
+];
+
+const NEGATIVE_KEYWORDS: KeywordRule[] = [
+  { keyword: "긴 대기", patterns: ["웨이팅", "기다", "오래", "줄", "queue", "wait"] },
+  { keyword: "높은 가격", patterns: ["비싸", "가격", "expensive", "price"] },
+  { keyword: "적은 양", patterns: ["양이 적", "양이 좀", "배가 차지", "small portion"] },
+  { keyword: "평범함", patterns: ["평범", "ordinary"] },
+  { keyword: "예약 필요", patterns: ["예약", "reservation"] },
+];
+
+function buildHighlights(
+  reviews: Review[],
+  sentiment: ReviewSentiment,
+  rules: KeywordRule[]
+): ReviewHighlight[] {
+  const counts = new Map<string, number>();
+
+  for (const review of reviews) {
+    const text = review.text.toLowerCase();
+    for (const rule of rules) {
+      const mentioned = rule.patterns.some((pattern) =>
+        text.includes(pattern.toLowerCase())
+      );
+      if (mentioned) {
+        counts.set(rule.keyword, (counts.get(rule.keyword) ?? 0) + 1);
+      }
+    }
+  }
+
+  return [...counts.entries()]
+    .sort(([aKeyword, aCount], [bKeyword, bCount]) => {
+      if (bCount !== aCount) return bCount - aCount;
+      return aKeyword.localeCompare(bKeyword, "ko");
+    })
+    .slice(0, 5)
+    .map(([keyword, count]) => ({ keyword, count, sentiment }));
+}
 
 export function useReviews(restaurantId: string) {
   return useQuery({
@@ -70,6 +126,10 @@ export function useReviews(restaurantId: string) {
         ratings.length > 0
           ? ratings.reduce((a, b) => a + b, 0) / ratings.length
           : 0;
+      const highlights = [
+        ...buildHighlights(positive, "positive", POSITIVE_KEYWORDS),
+        ...buildHighlights(negative, "negative", NEGATIVE_KEYWORDS),
+      ];
 
       return {
         totalCount: validReviews.length,
@@ -80,7 +140,7 @@ export function useReviews(restaurantId: string) {
         positiveReviews: positive,
         negativeReviews: negative,
         neutralReviews: neutral,
-        highlights: [], // TODO: Edge Function에서 키워드 분석 결과 반영
+        highlights,
       };
     },
     enabled: !!restaurantId,
