@@ -7,6 +7,9 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
+    "typecheck": "tsc --noEmit",
+    "validate": "python3 harness/validators/run_all.py",
+    "check": "npm run typecheck && npm run validate",
     "deploy:fn": "supabase functions deploy search-restaurant --project-ref hvucxypkwezwquejhlzg --no-verify-jwt"
   },
   "dependencies": {
