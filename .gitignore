@@ -1,0 +1,72 @@
+# ─── 환경변수 (민감정보 절대 커밋 금지) ──────────────────────────────────────
+.env
+.env.local
+.env.development
+.env.production
+.env.staging
+# .env.example 는 커밋 가능 (민감값 없음)
+
+# ─── Node ────────────────────────────────────────────────────────────────────
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnp
+.pnp.js
+
+# ─── Expo ────────────────────────────────────────────────────────────────────
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# ─── Native (prebuild 결과물) ─────────────────────────────────────────────────
+ios/
+android/
+
+# ─── Supabase ────────────────────────────────────────────────────────────────
+.supabase/
+supabase/.temp/
+
+# ─── Python (harness) ────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+harness/.venv/
+
+# ─── TypeScript / Build ───────────────────────────────────────────────────────
+*.tsbuildinfo
+.next/
+out/
+
+# ─── IDE ─────────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*.sublime-workspace
+
+# ─── OS ──────────────────────────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+
+# ─── EAS ─────────────────────────────────────────────────────────────────────
+.easignore
+eas-build-tmp/
+
+# ─── 테스트 커버리지 ──────────────────────────────────────────────────────────
+coverage/
+*.lcov

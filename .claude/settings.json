@@ -1,0 +1,30 @@
+{
+  "hooks": {
+    "postToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "command": "bash harness/hooks/run_validators.sh"
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if echo \"$CLAUDE_TOOL_INPUT\" | grep -qE 'rm\\s+-rf|git\\s+push\\s+--force|git\\s+reset\\s+--hard|DROP\\s+TABLE|truncate\\s+table'; then echo 'BLOCKED: 위험한 명령어가 감지되었습니다. 사용자 명시적 승인 없이 실행 불가.' >&2; exit 1; fi"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if echo \"$CLAUDE_TOOL_INPUT\" | grep -qE '\\.env([^.]|$)'; then echo 'BLOCKED: .env 파일은 Claude가 절대 수정할 수 없습니다. 환경변수는 사용자가 직접 .env 파일에 입력하세요.' >&2; exit 1; fi"
+          }
+        ]
+      }
+    ]
+  }
+}
