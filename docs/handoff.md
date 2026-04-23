@@ -131,6 +131,20 @@ npm run check
   - representative menu preview
 - If domain data is missing, cards gracefully fall back to the original lighter layout.
 
+### Map Tab UI Skeleton Pass
+
+- Replaced the old placeholder `app/(tabs)/map.tsx`.
+- Map tab now includes:
+  - search bar
+  - quick search chips
+  - recent search shortcuts
+  - faux map canvas with marker dots
+  - selected place preview card
+  - result list
+  - detail page navigation
+- This is still a non-SDK map implementation.
+- Real Naver / Google map SDK integration is still pending.
+
 ### CI
 
 - Added `.github/workflows/check.yml`.
@@ -193,8 +207,8 @@ Recommended next order:
    - Review card tone, external links, section density, header finish.
 2. Continue search result card polish.
    - Better chip color rules, global/local nuance, spacing, optional icon actions.
-3. Prepare map tab real UI.
-   - SDK can come later; first build map-like layout and result handoff.
+3. Continue map tab polish.
+   - better marker behavior, richer result cells, eventual handoff to real SDK.
 4. Continue replacing hard-coded colors with `src/utils/theme.ts`.
 5. Add README screenshots or app screenshots after user approves visual direction.
 6. Review the less AI-looking banner candidate and decide whether to replace the committed banner.
