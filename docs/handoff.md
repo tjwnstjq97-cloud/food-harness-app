@@ -21,6 +21,7 @@
 - 홈 첫 화면에 cozy discovery banner 적용
 - Cozy design tokens added in `src/utils/theme.ts`
 - Home screen, search bar, and region badge partially restyled with cozy palette
+- Restaurant detail page partially restyled with cozy dashboard layout
 - Splash/adaptive icon background: `#F7F1E7`
 - GitHub Actions check workflow added
 
@@ -98,8 +99,26 @@ npm run check
 - Started centralizing colors for warm ivory, sage, clay orange, charcoal, positive, and negative chips.
 - Applied the new palette to:
   - `app/(tabs)/index.tsx`
+  - `app/restaurant/[id].tsx`
   - `src/components/SearchBar.tsx`
   - `src/components/RegionBadge.tsx`
+  - `src/components/MenuSection.tsx`
+
+### Detail Page Cozy Pass
+
+- Reworked top section of `app/restaurant/[id].tsx`.
+- Added:
+  - soft eyebrow label
+  - compact action row (`지도`, `전화`, `예약`, `공유`)
+  - 4-cell decision dashboard (`평점`, `웨이팅`, `예약`, `리뷰 분위기`)
+- Kept existing behaviors:
+  - favorites toggle
+  - share
+  - phone
+  - reservation link/phone
+  - waiting details
+  - review cards and expand/collapse
+- This is a partial redesign pass, not the final full polish.
 
 ### CI
 
@@ -159,8 +178,8 @@ npm run deploy:fn
 
 Recommended next order:
 
-1. Redesign restaurant detail page using `Cozy Map Insight`.
-   - Header, action bar, decision dashboard, review chips, menu preview.
+1. Continue restaurant detail page polish using `Cozy Map Insight`.
+   - Review card tone, external links, section density, header finish.
 2. Enhance search result cards.
    - Rating, review count, representative menu, waiting, reservation status.
 3. Prepare map tab real UI.

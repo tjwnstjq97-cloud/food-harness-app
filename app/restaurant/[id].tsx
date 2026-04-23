@@ -42,6 +42,9 @@ import { LoadingView, Toast, useToast } from "../../src/components/StateViews";
 import { MenuSection } from "../../src/components/MenuSection";
 import { ReviewCard } from "../../src/components/ReviewCard";
 import { localizeCategory } from "../../src/utils/categoryMap";
+import { cozyTheme } from "../../src/utils/theme";
+
+const colors = cozyTheme.colors;
 
 export default function RestaurantDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -168,6 +171,14 @@ export default function RestaurantDetailScreen() {
     );
   };
 
+  const isKR = restaurant.region === "KR";
+  const accentColor = isKR ? colors.kr : colors.global;
+  const accentSoft = isKR ? colors.krSoft : colors.globalSoft;
+  const waitingSummary = waitingData?.displayText ?? "정보 없음";
+  const reservationSummary = reservationData?.statusLabel ?? "정보 없음";
+  const ratingSummary = reviewData?.totalCount ? reviewData.averageRating.toFixed(1) : "--";
+  const reviewCountSummary = `${reviewData?.totalCount ?? 0}개`;
+
   return (
     <View style={styles.wrapper}>
     <ScrollView
@@ -179,7 +190,7 @@ export default function RestaurantDetailScreen() {
         options={{
           title: restaurant.name,
           headerBackTitle: "뒤로",
-          headerTintColor: "#FF6B35",
+          headerTintColor: colors.primary,
           headerRight: () => (
             <TouchableOpacity onPress={handleShare} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <Text style={styles.shareHeaderBtn}>공유</Text>
@@ -194,10 +205,17 @@ export default function RestaurantDetailScreen() {
           styles.headerCard,
           {
             borderTopWidth: 4,
-            borderTopColor: restaurant.region === "KR" ? "#03C75A" : "#4285F4",
+            borderTopColor: accentColor,
           },
         ]}
       >
+        <View style={styles.headerEyebrowRow}>
+          <View style={[styles.headerEyebrow, { backgroundColor: accentSoft }]}>
+            <Text style={[styles.headerEyebrowText, { color: accentColor }]}>
+              {isKR ? "국내 맛집 인사이트" : "글로벌 맛집 인사이트"}
+            </Text>
+          </View>
+        </View>
         <View style={styles.headerTop}>
           <View style={styles.headerTitles}>
             <Text style={styles.restaurantName}>{restaurant.name}</Text>
@@ -255,21 +273,74 @@ export default function RestaurantDetailScreen() {
             </Text>
           </TouchableOpacity>
         )}
+      </View>
 
-        {/* 지도 버튼 (region 별 컬러) */}
-        <TouchableOpacity
-          style={[
-            styles.mapButton,
-            { backgroundColor: restaurant.region === "KR" ? "#03C75A" : "#4285F4" },
-          ]}
-          onPress={handleMapOpen}
-        >
-          <Text style={styles.mapButtonText}>
-            {restaurant.region === "KR"
-              ? "🗺️  네이버 지도로 보기"
-              : "🗺️  구글 지도로 보기"}
-          </Text>
-        </TouchableOpacity>
+      <View style={styles.section}>
+        <View style={styles.actionRow}>
+          <TouchableOpacity
+            style={[styles.actionButton, { backgroundColor: accentSoft, borderColor: accentColor }]}
+            onPress={handleMapOpen}
+          >
+            <Text style={styles.actionIcon}>🗺️</Text>
+            <Text style={[styles.actionText, { color: accentColor }]}>지도</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={handlePhoneCall}
+            disabled={!restaurant.phone}
+          >
+            <Text style={styles.actionIcon}>📞</Text>
+            <Text style={[styles.actionText, !restaurant.phone && styles.actionTextDisabled]}>전화</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={handleReservationLink}
+            disabled={!reservationData?.hasLink}
+          >
+            <Text style={styles.actionIcon}>🗓️</Text>
+            <Text style={[styles.actionText, !reservationData?.hasLink && styles.actionTextDisabled]}>
+              예약
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.actionButton} onPress={handleShare}>
+            <Text style={styles.actionIcon}>↗</Text>
+            <Text style={styles.actionText}>공유</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>한눈에 보기</Text>
+        <View style={styles.dashboardCard}>
+          <View style={styles.metricGrid}>
+            <View style={styles.metricItem}>
+              <Text style={styles.metricLabel}>평점</Text>
+              <Text style={styles.metricValue}>⭐ {ratingSummary}</Text>
+              <Text style={styles.metricSub}>{reviewCountSummary} 리뷰</Text>
+            </View>
+            <View style={styles.metricItem}>
+              <Text style={styles.metricLabel}>웨이팅</Text>
+              <Text style={styles.metricValue}>{waitingSummary}</Text>
+              <Text style={styles.metricSub}>
+                {waitingData?.isEstimated ? "추정 정보" : "실시간 또는 최신 정보"}
+              </Text>
+            </View>
+            <View style={styles.metricItem}>
+              <Text style={styles.metricLabel}>예약</Text>
+              <Text style={styles.metricValue}>{reservationSummary}</Text>
+              <Text style={styles.metricSub}>
+                {reservationData?.walkInAvailable ? "현장 방문 가능" : "상세 확인"}
+              </Text>
+            </View>
+            <View style={styles.metricItem}>
+              <Text style={styles.metricLabel}>리뷰 분위기</Text>
+              <Text style={styles.metricValue}>
+                👍 {reviewData?.positiveCount ?? 0} / 👎 {reviewData?.negativeCount ?? 0}
+              </Text>
+              <Text style={styles.metricSub}>출처 있는 리뷰 기준</Text>
+            </View>
+          </View>
+        </View>
       </View>
 
       {/* ── 대표 메뉴 ── */}
@@ -591,7 +662,7 @@ export default function RestaurantDetailScreen() {
 
 const styles = StyleSheet.create({
   wrapper: { flex: 1 },
-  container: { flex: 1, backgroundColor: "#f5f5f5" },
+  container: { flex: 1, backgroundColor: colors.background },
   content: { paddingBottom: 32 },
 
   notFoundContainer: {
@@ -599,32 +670,43 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     gap: 12,
-    backgroundColor: "#f5f5f5",
+    backgroundColor: colors.background,
     paddingHorizontal: 24,
   },
   notFoundIcon: { fontSize: 56 },
-  notFoundTitle: { fontSize: 17, fontWeight: "600", color: "#1a1a1a" },
-  notFoundSub: { fontSize: 13, color: "#999", textAlign: "center" },
+  notFoundTitle: { fontSize: 17, fontWeight: "600", color: colors.text },
+  notFoundSub: { fontSize: 13, color: colors.textSubtle, textAlign: "center" },
   backButton: {
     marginTop: 8,
     paddingHorizontal: 24,
     paddingVertical: 12,
-    backgroundColor: "#FF6B35",
+    backgroundColor: colors.primary,
     borderRadius: 10,
   },
   backButtonText: { color: "#fff", fontWeight: "600", fontSize: 15 },
 
   headerCard: {
-    backgroundColor: "#fff",
+    backgroundColor: colors.surface,
     margin: 12,
-    borderRadius: 14,
+    borderRadius: cozyTheme.radius.lg,
     padding: 16,
     gap: 10,
-    shadowColor: "#000",
+    shadowColor: cozyTheme.shadow.color,
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
+    shadowOpacity: cozyTheme.shadow.opacity,
     shadowRadius: 6,
     elevation: 3,
+  },
+  headerEyebrowRow: { marginBottom: 2 },
+  headerEyebrow: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+  },
+  headerEyebrowText: {
+    fontSize: 11,
+    fontWeight: "700",
   },
   headerTop: {
     flexDirection: "row",
@@ -635,72 +717,126 @@ const styles = StyleSheet.create({
   restaurantName: {
     fontSize: 22,
     fontWeight: "bold",
-    color: "#1a1a1a",
+    color: colors.text,
     flexShrink: 1,
   },
   badges: { flexDirection: "row", gap: 6, flexWrap: "wrap" },
   categoryBadge: {
-    backgroundColor: "#f5f5f5",
+    backgroundColor: colors.surfaceMuted,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 8,
   },
-  categoryText: { fontSize: 11, color: "#555" },
+  categoryText: { fontSize: 11, color: colors.textMuted },
 
   favButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
     borderWidth: 1.5,
-    borderColor: "#ddd",
+    borderColor: colors.borderStrong,
     justifyContent: "center",
     alignItems: "center",
     marginLeft: 8,
   },
   favButtonActive: {
-    borderColor: "#FF6B35",
-    backgroundColor: "#FFF0EB",
+    borderColor: colors.primary,
+    backgroundColor: colors.primarySurface,
   },
-  favIcon: { fontSize: 20, color: "#FF6B35" },
+  favIcon: { fontSize: 20, color: colors.primary },
 
   infoRow: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
   infoIcon: { fontSize: 14, marginTop: 1 },
-  infoText: { flex: 1, fontSize: 14, color: "#555", lineHeight: 20 },
-  phoneText: { color: "#FF6B35", textDecorationLine: "underline" },
+  infoText: { flex: 1, fontSize: 14, color: colors.textMuted, lineHeight: 20 },
+  phoneText: { color: colors.primary, textDecorationLine: "underline" },
   copyHint: {
     fontSize: 11,
-    color: "#FF6B35",
+    color: colors.primary,
     fontWeight: "600",
     paddingHorizontal: 8,
     paddingVertical: 3,
-    backgroundColor: "#FFF0EB",
+    backgroundColor: colors.primarySurface,
     borderRadius: 6,
   },
-
-  mapButton: {
-    marginTop: 4,
-    paddingVertical: 11,
-    backgroundColor: "#03C75A",
-    borderRadius: 10,
-    alignItems: "center",
-  },
-  mapButtonText: { color: "#fff", fontWeight: "600", fontSize: 14 },
 
   section: { marginHorizontal: 12, marginBottom: 4 },
   sectionTitle: {
     fontSize: 15,
     fontWeight: "700",
-    color: "#1a1a1a",
+    color: colors.text,
     marginBottom: 8,
     marginTop: 8,
   },
-  infoCard: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
+
+  actionRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  actionButton: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    minHeight: 68,
+    borderRadius: cozyTheme.radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    paddingVertical: 10,
+  },
+  actionIcon: { fontSize: 18 },
+  actionText: {
+    fontSize: 12,
+    color: colors.text,
+    fontWeight: "700",
+  },
+  actionTextDisabled: {
+    color: colors.textSubtle,
+  },
+
+  dashboardCard: {
+    backgroundColor: colors.surface,
+    borderRadius: cozyTheme.radius.lg,
     padding: 14,
-    shadowColor: "#000",
+    shadowColor: cozyTheme.shadow.color,
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
+    shadowOpacity: cozyTheme.shadow.opacity,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  metricGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    marginHorizontal: -5,
+    marginVertical: -5,
+  },
+  metricItem: {
+    width: "50%",
+    padding: 5,
+    gap: 3,
+  },
+  metricLabel: {
+    fontSize: 11,
+    color: colors.textSubtle,
+    fontWeight: "700",
+  },
+  metricValue: {
+    fontSize: 16,
+    color: colors.text,
+    fontWeight: "800",
+  },
+  metricSub: {
+    fontSize: 11,
+    color: colors.textMuted,
+    lineHeight: 16,
+  },
+  infoCard: {
+    backgroundColor: colors.surface,
+    borderRadius: cozyTheme.radius.lg,
+    padding: 14,
+    shadowColor: cozyTheme.shadow.color,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: cozyTheme.shadow.opacity,
     shadowRadius: 4,
     elevation: 2,
     gap: 8,
@@ -714,62 +850,62 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
   },
   reservationIcon: { fontSize: 16 },
-  statusLabel: { fontSize: 14, color: "#333", fontWeight: "500", flex: 1 },
+  statusLabel: { fontSize: 14, color: colors.text, fontWeight: "500", flex: 1 },
   walkInBadge: {
-    backgroundColor: "#E8F5E9",
+    backgroundColor: colors.positiveSoft,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
   },
-  walkInText: { fontSize: 11, color: "#2E7D32" },
-  reservationNote: { fontSize: 12, color: "#888", lineHeight: 18 },
+  walkInText: { fontSize: 11, color: colors.positive },
+  reservationNote: { fontSize: 12, color: colors.textMuted, lineHeight: 18 },
   linkButton: {
     paddingVertical: 10,
-    backgroundColor: "#FF6B35",
+    backgroundColor: colors.primary,
     borderRadius: 8,
     alignItems: "center",
   },
   linkButtonText: { color: "#fff", fontWeight: "600", fontSize: 13 },
   phoneButton: {
     paddingVertical: 10,
-    backgroundColor: "#f5f5f5",
+    backgroundColor: colors.surfaceSoft,
     borderRadius: 8,
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#e0e0e0",
+    borderColor: colors.border,
   },
-  phoneButtonText: { fontSize: 13, color: "#333", fontWeight: "500" },
+  phoneButtonText: { fontSize: 13, color: colors.text, fontWeight: "500" },
 
   // ── 웨이팅 ──
   waitingRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  waitingText: { fontSize: 16, color: "#333", fontWeight: "600" },
+  waitingText: { fontSize: 16, color: colors.text, fontWeight: "600" },
   estimatedBadge: {
-    backgroundColor: "#FFF3E0",
+    backgroundColor: colors.primarySurface,
     paddingHorizontal: 7,
     paddingVertical: 2,
     borderRadius: 6,
   },
-  estimatedText: { fontSize: 11, color: "#E65100", fontWeight: "600" },
-  waitingRange: { fontSize: 13, color: "#666" },
-  waitingEvidence: { fontSize: 12, color: "#888", lineHeight: 18 },
-  waitingUpdatedAt: { fontSize: 11, color: "#bbb", marginTop: 2 },
+  estimatedText: { fontSize: 11, color: colors.primary, fontWeight: "600" },
+  waitingRange: { fontSize: 13, color: colors.textMuted },
+  waitingEvidence: { fontSize: 12, color: colors.textMuted, lineHeight: 18 },
+  waitingUpdatedAt: { fontSize: 11, color: colors.textSubtle, marginTop: 2 },
 
   // ── 리뷰 ──
   ratingRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  ratingScore: { fontSize: 20, fontWeight: "bold", color: "#1a1a1a" },
-  ratingCount: { fontSize: 13, color: "#888" },
+  ratingScore: { fontSize: 20, fontWeight: "bold", color: colors.text },
+  ratingCount: { fontSize: 13, color: colors.textMuted },
   sentimentRow: { flexDirection: "row", gap: 20 },
   sentimentItem: { flexDirection: "row", alignItems: "center", gap: 4 },
-  sentimentCount: { fontSize: 14, color: "#555" },
-  reviewNote: { fontSize: 11, color: "#aaa" },
+  sentimentCount: { fontSize: 14, color: colors.textMuted },
+  reviewNote: { fontSize: 11, color: colors.textSubtle },
   highlightSection: {
     borderTopWidth: 1,
-    borderTopColor: "#f0f0f0",
+    borderTopColor: colors.border,
     paddingTop: 10,
     gap: 10,
   },
   highlightGroup: { gap: 6 },
-  highlightTitle: { fontSize: 12, color: "#777", fontWeight: "700" },
+  highlightTitle: { fontSize: 12, color: colors.textMuted, fontWeight: "700" },
   highlightChips: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
   highlightChip: {
     paddingHorizontal: 9,
@@ -778,38 +914,38 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   positiveHighlightChip: {
-    backgroundColor: "#E8F5E9",
-    borderColor: "#C8E6C9",
+    backgroundColor: colors.positiveSoft,
+    borderColor: colors.krSoft,
   },
   negativeHighlightChip: {
-    backgroundColor: "#FFEBEE",
-    borderColor: "#FFCDD2",
+    backgroundColor: colors.negativeSoft,
+    borderColor: "#EBC2BE",
   },
   positiveHighlightText: {
     fontSize: 12,
-    color: "#2E7D32",
+    color: colors.positive,
     fontWeight: "700",
   },
   negativeHighlightText: {
     fontSize: 12,
-    color: "#C62828",
+    color: colors.negative,
     fontWeight: "700",
   },
   emptyCard: { alignItems: "center", paddingVertical: 20, gap: 6 },
   emptyIcon: { fontSize: 32 },
-  noDataText: { fontSize: 14, color: "#999", fontWeight: "500" },
-  noDataSub: { fontSize: 12, color: "#ccc" },
+  noDataText: { fontSize: 14, color: colors.textSubtle, fontWeight: "500" },
+  noDataSub: { fontSize: 12, color: colors.textSubtle },
   reviewCardWrapper: { marginTop: 6 },
   expandReviewBtn: {
     marginTop: 10,
     paddingVertical: 10,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: "#e0e0e0",
+    borderColor: colors.border,
     alignItems: "center",
-    backgroundColor: "#fafafa",
+    backgroundColor: colors.surfaceSoft,
   },
-  expandReviewText: { fontSize: 13, color: "#FF6B35", fontWeight: "600" },
+  expandReviewText: { fontSize: 13, color: colors.primary, fontWeight: "600" },
 
   externalLinks: {
     flexDirection: "row",
@@ -822,23 +958,23 @@ const styles = StyleSheet.create({
     gap: 5,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    backgroundColor: "#fff",
+    backgroundColor: colors.surface,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#e0e0e0",
-    shadowColor: "#000",
+    borderColor: colors.border,
+    shadowColor: cozyTheme.shadow.color,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.04,
     shadowRadius: 2,
     elevation: 1,
   },
   externalBtnIcon: { fontSize: 14 },
-  externalBtnText: { fontSize: 13, color: "#333", fontWeight: "600" },
-  externalNote: { fontSize: 11, color: "#aaa", marginTop: 6 },
+  externalBtnText: { fontSize: 13, color: colors.text, fontWeight: "600" },
+  externalNote: { fontSize: 11, color: colors.textSubtle, marginTop: 6 },
 
   shareHeaderBtn: {
     fontSize: 15,
-    color: "#FF6B35",
+    color: colors.primary,
     fontWeight: "600",
     paddingRight: 4,
   },

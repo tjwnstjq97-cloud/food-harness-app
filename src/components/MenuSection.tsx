@@ -7,6 +7,9 @@ import { useState } from "react";
 import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity } from "react-native";
 import { formatMenuPrice } from "../types/menu";
 import type { MenuItem } from "../types/menu";
+import { cozyTheme } from "../utils/theme";
+
+const colors = cozyTheme.colors;
 
 interface MenuSectionProps {
   items: MenuItem[];
@@ -66,7 +69,7 @@ export function MenuSection({
       <Text style={styles.title}>{title}</Text>
       <View style={styles.card}>
         {isLoading ? (
-          <ActivityIndicator size="small" color="#FF6B35" />
+          <ActivityIndicator size="small" color={colors.primary} />
         ) : items.length === 0 ? (
           <Text style={styles.noData}>메뉴 정보가 없습니다.</Text>
         ) : (
@@ -101,31 +104,31 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 15,
     fontWeight: "700",
-    color: "#1a1a1a",
+    color: colors.text,
     marginBottom: 8,
     marginTop: 8,
   },
   card: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
+    backgroundColor: colors.surface,
+    borderRadius: cozyTheme.radius.lg,
     padding: 14,
-    shadowColor: "#000",
+    shadowColor: cozyTheme.shadow.color,
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
+    shadowOpacity: cozyTheme.shadow.opacity,
     shadowRadius: 4,
     elevation: 2,
     gap: 10,
   },
-  noData: { fontSize: 14, color: "#999" },
-  sourceNote: { fontSize: 11, color: "#aaa", marginTop: 2 },
+  noData: { fontSize: 14, color: colors.textSubtle },
+  sourceNote: { fontSize: 11, color: colors.textSubtle, marginTop: 2 },
   expandBtn: {
     paddingVertical: 8,
     alignItems: "center",
     borderTopWidth: 1,
-    borderTopColor: "#f0f0f0",
+    borderTopColor: colors.border,
     marginTop: 4,
   },
-  expandText: { fontSize: 13, color: "#FF6B35", fontWeight: "600" },
+  expandText: { fontSize: 13, color: colors.primary, fontWeight: "600" },
 
   menuRow: {
     flexDirection: "row",
@@ -133,7 +136,7 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     paddingVertical: 4,
     borderBottomWidth: 1,
-    borderBottomColor: "#f5f5f5",
+    borderBottomColor: colors.border,
   },
   menuLeft: { flex: 1, gap: 2 },
   menuNameRow: {
@@ -142,13 +145,13 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   signatureBadge: {
-    backgroundColor: "#FFF0EB",
+    backgroundColor: colors.primarySurface,
     paddingHorizontal: 5,
     paddingVertical: 1,
     borderRadius: 4,
   },
-  signatureText: { fontSize: 10, color: "#FF6B35", fontWeight: "700" },
-  menuName: { fontSize: 14, color: "#1a1a1a", fontWeight: "500", flex: 1 },
-  menuDesc: { fontSize: 12, color: "#999" },
+  signatureText: { fontSize: 10, color: colors.primary, fontWeight: "700" },
+  menuName: { fontSize: 14, color: colors.text, fontWeight: "500", flex: 1 },
+  menuDesc: { fontSize: 12, color: colors.textSubtle },
   menuPrice: { fontSize: 13, fontWeight: "600", marginLeft: 8 },
 });
