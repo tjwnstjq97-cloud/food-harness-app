@@ -44,6 +44,7 @@ import type { Restaurant } from "../../src/types/restaurant";
 import { localizeCategory } from "../../src/utils/categoryMap";
 import { HighlightText } from "../../src/components/HighlightText";
 import { cozyTheme } from "../../src/utils/theme";
+import { useRestaurantCardMeta } from "../../src/hooks/useRestaurantCardMeta";
 
 const SEARCH_SUGGESTIONS_KR = ["명동", "강남", "홍대", "이태원", "을지로"];
 const SEARCH_SUGGESTIONS_GLOBAL = ["sushi", "pizza", "ramen", "bbq", "cafe"];
@@ -162,41 +163,87 @@ export default function HomeScreen() {
     return data.restaurants.filter((r) => r.category === activeCategory);
   }, [data?.restaurants, activeCategory]);
 
-  const renderItem = ({ item }: { item: Restaurant }) => (
-    <TouchableOpacity
-      style={styles.card}
-      activeOpacity={0.75}
-      onPress={() => handleCardPress(item)}
-    >
-      <View style={styles.cardTop}>
-        <HighlightText
-          text={item.name}
-          query={submitted}
-          style={styles.restaurantName}
-          numberOfLines={1}
-        />
-        {!!item.category && (
-          <View style={styles.cardBadge}>
-            <Text style={styles.cardBadgeText}>{localizeCategory(item.category)}</Text>
-          </View>
-        )}
-      </View>
-      {!!item.address && (
-        <HighlightText
-          text={`📍 ${item.address}`}
-          query={submitted}
-          style={styles.address}
-          numberOfLines={1}
-        />
-      )}
-      {!!item.phone && (
-        <Text style={styles.phone} numberOfLines={1}>
-          📞 {item.phone}
-        </Text>
-      )}
-      <Text style={styles.tapHint}>탭하여 상세보기 →</Text>
-    </TouchableOpacity>
+  const restaurantIds = useMemo(
+    () => (data?.restaurants ?? []).map((restaurant) => restaurant.id),
+    [data?.restaurants]
   );
+  const { data: cardMetaMap } = useRestaurantCardMeta(restaurantIds);
+
+  const renderItem = ({ item }: { item: Restaurant }) => {
+    const cardMeta = cardMetaMap?.[item.id];
+    const topMenus = cardMeta?.signatureMenus ?? [];
+
+    return (
+      <TouchableOpacity
+        style={styles.card}
+        activeOpacity={0.75}
+        onPress={() => handleCardPress(item)}
+      >
+        <View style={styles.cardTop}>
+          <HighlightText
+            text={item.name}
+            query={submitted}
+            style={styles.restaurantName}
+            numberOfLines={1}
+          />
+          {!!item.category && (
+            <View style={styles.cardBadge}>
+              <Text style={styles.cardBadgeText}>{localizeCategory(item.category)}</Text>
+            </View>
+          )}
+        </View>
+
+        <View style={styles.insightRow}>
+          {cardMeta?.averageRating !== undefined ? (
+            <View style={styles.insightChip}>
+              <Text style={styles.insightChipText}>
+                ⭐ {cardMeta.averageRating.toFixed(1)} ({cardMeta.reviewCount})
+              </Text>
+            </View>
+          ) : (
+            <View style={[styles.insightChip, styles.insightChipMuted]}>
+              <Text style={[styles.insightChipText, styles.insightChipTextMuted]}>
+                리뷰 없음
+              </Text>
+            </View>
+          )}
+
+          {!!cardMeta?.waitingLabel && (
+            <View style={[styles.insightChip, styles.waitingChip]}>
+              <Text style={styles.waitingChipText}>웨이팅 {cardMeta.waitingLabel}</Text>
+            </View>
+          )}
+
+          {!!cardMeta?.reservationLabel && cardMeta.reservationLabel !== "예약 정보 없음" && (
+            <View style={[styles.insightChip, styles.reservationChip]}>
+              <Text style={styles.reservationChipText}>{cardMeta.reservationLabel}</Text>
+            </View>
+          )}
+        </View>
+
+        {topMenus.length > 0 && (
+          <Text style={styles.menuPreview} numberOfLines={1}>
+            대표 메뉴: {topMenus.join(" · ")}
+          </Text>
+        )}
+
+        {!!item.address && (
+          <HighlightText
+            text={`📍 ${item.address}`}
+            query={submitted}
+            style={styles.address}
+            numberOfLines={1}
+          />
+        )}
+        {!!item.phone && (
+          <Text style={styles.phone} numberOfLines={1}>
+            📞 {item.phone}
+          </Text>
+        )}
+        <Text style={styles.tapHint}>탭하여 상세보기 →</Text>
+      </TouchableOpacity>
+    );
+  };
 
   const showRecentQueries = !submitted && recentQueries.length > 0;
   const showHint = !submitted && recentQueries.length === 0;
@@ -639,6 +686,45 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   cardBadgeText: { fontSize: 11, color: colors.primary, fontWeight: "600" },
+  insightRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  insightChip: {
+    backgroundColor: colors.surfaceMuted,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  insightChipMuted: {
+    backgroundColor: colors.surfaceSoft,
+  },
+  insightChipText: {
+    fontSize: 11,
+    color: colors.text,
+    fontWeight: "700",
+  },
+  insightChipTextMuted: {
+    color: colors.textSubtle,
+  },
+  waitingChip: {
+    backgroundColor: colors.primarySurface,
+  },
+  waitingChipText: {
+    fontSize: 11,
+    color: colors.primary,
+    fontWeight: "700",
+  },
+  reservationChip: {
+    backgroundColor: colors.krSoft,
+  },
+  reservationChipText: {
+    fontSize: 11,
+    color: colors.kr,
+    fontWeight: "700",
+  },
+  menuPreview: {
+    fontSize: 12,
+    color: colors.textMuted,
+    fontWeight: "600",
+  },
   address: { fontSize: 13, color: colors.textMuted },
   phone: { fontSize: 12, color: colors.textSubtle },
   tapHint: { fontSize: 11, color: colors.textSubtle, textAlign: "right" },

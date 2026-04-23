@@ -120,6 +120,17 @@ npm run check
   - review cards and expand/collapse
 - This is a partial redesign pass, not the final full polish.
 
+### Search Result Card Meta Pass
+
+- Added `src/hooks/useRestaurantCardMeta.ts`.
+- Search result cards in `app/(tabs)/index.tsx` now load batched meta by restaurant ids.
+- Card-level additions:
+  - rating + review count
+  - waiting label
+  - reservation status label
+  - representative menu preview
+- If domain data is missing, cards gracefully fall back to the original lighter layout.
+
 ### CI
 
 - Added `.github/workflows/check.yml`.
@@ -180,8 +191,8 @@ Recommended next order:
 
 1. Continue restaurant detail page polish using `Cozy Map Insight`.
    - Review card tone, external links, section density, header finish.
-2. Enhance search result cards.
-   - Rating, review count, representative menu, waiting, reservation status.
+2. Continue search result card polish.
+   - Better chip color rules, global/local nuance, spacing, optional icon actions.
 3. Prepare map tab real UI.
    - SDK can come later; first build map-like layout and result handoff.
 4. Continue replacing hard-coded colors with `src/utils/theme.ts`.
