@@ -9,6 +9,7 @@
  */
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
+import { useAuth } from "../providers/AuthProvider";
 import { filterValidReviews } from "../utils/validators";
 import type { Review, ReviewHighlight, ReviewSentiment, ReviewSummary } from "../types/review";
 
@@ -45,11 +46,19 @@ const POSITIVE_KEYWORDS: KeywordRule[] = [
 ];
 
 const NEGATIVE_KEYWORDS: KeywordRule[] = [
-  { keyword: "긴 대기", patterns: ["웨이팅", "기다", "오래", "줄", "queue", "wait"] },
-  { keyword: "높은 가격", patterns: ["비싸", "가격", "expensive", "price"] },
+  { keyword: "긴 대기", patterns: ["웨이팅", "기다", "오래 기다", "줄", "queue", "wait in line"] },
+  { keyword: "높은 가격", patterns: ["비싸", "가격이", "expensive", "overpriced"] },
   { keyword: "적은 양", patterns: ["양이 적", "양이 좀", "배가 차지", "small portion"] },
-  { keyword: "평범함", patterns: ["평범", "ordinary"] },
-  { keyword: "예약 필요", patterns: ["예약", "reservation"] },
+  { keyword: "평범함", patterns: ["평범", "ordinary", "그저 그"] },
+  { keyword: "예약 필요", patterns: ["예약 필수", "예약해야", "reservation only"] },
+  // 사용자 요청 추가 (Phase 18: 부정 키워드 확장)
+  { keyword: "불친절", patterns: ["불친절", "무례", "버릇없", "태도가", "응대 안", "응대가", "직원이 별로", "rude", "attitude"] },
+  { keyword: "흡연", patterns: ["담배", "흡연", "담배 냄새", "smoke", "smoking"] },
+  { keyword: "서빙 지연", patterns: ["늦게 나오", "음식이 늦", "음식이 느", "주문하고 한참", "한참 만에", "slow service"] },
+  { keyword: "냄새", patterns: ["냄새가", "악취", "비위", "쩐내", "smelly", "stink"] },
+  { keyword: "차별", patterns: ["차별", "인종차별", "외국인 차별", "한국인만", "racist", "discriminat"] },
+  { keyword: "위생", patterns: ["위생", "더럽", "청결", "벌레", "머리카락", "지저분", "dirty", "hygiene", "unsanitary"] },
+  { keyword: "시끄러움", patterns: ["시끄러", "소음", "떠들", "noisy", "loud"] },
 ];
 
 function buildHighlights(
@@ -81,8 +90,9 @@ function buildHighlights(
 }
 
 export function useReviews(restaurantId: string) {
+  const { user } = useAuth();
   return useQuery({
-    queryKey: ["reviews", restaurantId],
+    queryKey: ["reviews", restaurantId, user?.id ?? null],
     queryFn: async (): Promise<ReviewSummary> => {
       // TODO: Edge Function 경유로 변경 (출처별 외부 API 호출)
       const { data, error } = await supabase
@@ -101,15 +111,20 @@ export function useReviews(restaurantId: string) {
       }
 
       // DB 컬럼(snake_case) → Review 타입(camelCase) 매핑
-      const rawReviews: Review[] = (data ?? []).map((row) => ({
-        id:         String(row.id ?? ""),
-        text:       String(row.text ?? ""),
-        rating:     Number(row.rating ?? 0),
-        source:     String(row.source ?? ""),
-        sentiment:  row.sentiment ?? "neutral",
-        authorName: row.author_name ? String(row.author_name) : undefined,
-        createdAt:  String(row.created_at ?? ""),
-      }));
+      const rawReviews: Review[] = (data ?? []).map((row) => {
+        const userId = row.user_id ? String(row.user_id) : null;
+        return {
+          id:         String(row.id ?? ""),
+          text:       String(row.text ?? ""),
+          rating:     Number(row.rating ?? 0),
+          source:     String(row.source ?? ""),
+          sentiment:  row.sentiment ?? "neutral",
+          authorName: row.author_name ? String(row.author_name) : undefined,
+          createdAt:  String(row.created_at ?? ""),
+          userId,
+          isMine:     !!user?.id && userId === user.id,
+        };
+      });
 
       // 출처 없는 리뷰 필터링 (하네스 규칙: 출처 없는 데이터 표시 금지)
       const validReviews = filterValidReviews(rawReviews);

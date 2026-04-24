@@ -324,6 +324,11 @@ export default function MapScreen() {
             keyExtractor={(item) => item.id}
             contentContainerStyle={styles.resultList}
             showsVerticalScrollIndicator={false}
+            // 성능 튜닝 (Phase 23)
+            initialNumToRender={6}
+            maxToRenderPerBatch={6}
+            windowSize={7}
+            removeClippedSubviews
             renderItem={({ item }) => {
               const active = item.id === selectedRestaurant?.id;
               return (

@@ -260,6 +260,11 @@ export default function FavoritesScreen() {
           styles.list,
           filteredFavorites.length === 0 && styles.emptyList,
         ]}
+        // 성능 튜닝 (Phase 23)
+        initialNumToRender={10}
+        maxToRenderPerBatch={10}
+        windowSize={11}
+        removeClippedSubviews
         refreshControl={
           <RefreshControl
             refreshing={isLoading}

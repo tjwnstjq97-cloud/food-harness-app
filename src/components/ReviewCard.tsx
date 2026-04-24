@@ -5,13 +5,17 @@
  *  - 긍정/부정 배지 색상 구분
  *  - 개인정보(authorName) 표시 최소화
  */
-import { View, Text, StyleSheet } from "react-native";
+import { memo } from "react";
+import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import type { Review } from "../types/review";
 
 interface ReviewCardProps {
   review: Review;
   /** 텍스트 최대 줄 수 (기본 3) */
   maxLines?: number;
+  /** "내 리뷰" 액션 — 본인 리뷰일 때만 호출자가 전달 */
+  onEdit?: (review: Review) => void;
+  onDelete?: (review: Review) => void;
 }
 
 const SENTIMENT_CONFIG = {
@@ -30,26 +34,39 @@ const SOURCE_LABELS: Record<string, string> = {
   user:        "직접 입력",
 };
 
-export function ReviewCard({ review, maxLines = 3 }: ReviewCardProps) {
+function ReviewCardImpl({
+  review,
+  maxLines = 3,
+  onEdit,
+  onDelete,
+}: ReviewCardProps) {
   // 하네스 규칙: source 없으면 표시 금지
   if (!review.source) return null;
 
   const sentiment = review.sentiment ?? "neutral";
   const config = SENTIMENT_CONFIG[sentiment] ?? SENTIMENT_CONFIG.neutral;
   const sourceLabel = SOURCE_LABELS[review.source] ?? review.source;
+  const showOwnerActions = !!review.isMine && (!!onEdit || !!onDelete);
 
   const stars = "★".repeat(Math.round(review.rating)) +
                 "☆".repeat(5 - Math.round(review.rating));
 
   return (
-    <View style={styles.card}>
+    <View style={[styles.card, review.isMine && styles.cardMine]}>
       {/* 상단: 감정 배지 + 출처 + 별점 */}
       <View style={styles.header}>
-        <View style={[styles.sentimentBadge, { backgroundColor: config.bg }]}>
-          <Text style={styles.sentimentIcon}>{config.icon}</Text>
-          <Text style={[styles.sentimentLabel, { color: config.color }]}>
-            {config.label}
-          </Text>
+        <View style={styles.headerLeft}>
+          <View style={[styles.sentimentBadge, { backgroundColor: config.bg }]}>
+            <Text style={styles.sentimentIcon}>{config.icon}</Text>
+            <Text style={[styles.sentimentLabel, { color: config.color }]}>
+              {config.label}
+            </Text>
+          </View>
+          {review.isMine && (
+            <View style={styles.mineBadge}>
+              <Text style={styles.mineBadgeText}>내 리뷰</Text>
+            </View>
+          )}
         </View>
 
         <View style={styles.meta}>
@@ -63,15 +80,49 @@ export function ReviewCard({ review, maxLines = 3 }: ReviewCardProps) {
         {review.text}
       </Text>
 
-      {/* 날짜 */}
-      {!!review.createdAt && (
-        <Text style={styles.date}>
-          {new Date(review.createdAt).toLocaleDateString("ko-KR")}
-        </Text>
-      )}
+      {/* 하단: 날짜 + (내 리뷰일 때) 수정/삭제 */}
+      <View style={styles.footer}>
+        {!!review.createdAt && (
+          <Text style={styles.date}>
+            {new Date(review.createdAt).toLocaleDateString("ko-KR")}
+          </Text>
+        )}
+        {showOwnerActions && (
+          <View style={styles.ownerActions}>
+            {onEdit && (
+              <TouchableOpacity
+                onPress={() => onEdit(review)}
+                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                accessibilityRole="button"
+                accessibilityLabel="내 리뷰 수정"
+              >
+                <Text style={styles.ownerActionText}>수정</Text>
+              </TouchableOpacity>
+            )}
+            {onDelete && (
+              <TouchableOpacity
+                onPress={() => onDelete(review)}
+                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                accessibilityRole="button"
+                accessibilityLabel="내 리뷰 삭제"
+              >
+                <Text style={[styles.ownerActionText, styles.deleteAction]}>
+                  삭제
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+      </View>
     </View>
   );
 }
+
+/**
+ * 리뷰 목록은 음식점당 수십 개까지 표시되므로 memo로 재렌더 비용을 줄인다.
+ * onEdit/onDelete는 부모에서 stable reference로 전달해야 효과 (RestaurantDetailScreen에서는 매 렌더 새로 만들지만 isMine review 갯수 = 1이라 영향 미미).
+ */
+export const ReviewCard = memo(ReviewCardImpl);
 
 const styles = StyleSheet.create({
   card: {
@@ -82,11 +133,32 @@ const styles = StyleSheet.create({
     borderColor: "#f0f0f0",
     gap: 6,
   },
+  cardMine: {
+    backgroundColor: "#FBE8DA",
+    borderColor: "#F4D8C4",
+  },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
+  headerLeft: { flexDirection: "row", alignItems: "center", gap: 6 },
+  mineBadge: {
+    backgroundColor: "#C9651E",
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  mineBadgeText: { color: "#fff", fontSize: 10, fontWeight: "700" },
+  footer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 2,
+  },
+  ownerActions: { flexDirection: "row", gap: 12 },
+  ownerActionText: { fontSize: 12, color: "#C9651E", fontWeight: "700" },
+  deleteAction: { color: "#A95454" },
   sentimentBadge: {
     flexDirection: "row",
     alignItems: "center",

@@ -41,8 +41,12 @@ import { RegionBadge } from "../../src/components/RegionBadge";
 import { LoadingView, Toast, useToast } from "../../src/components/StateViews";
 import { MenuSection } from "../../src/components/MenuSection";
 import { ReviewCard } from "../../src/components/ReviewCard";
+import { ReviewSubmitForm } from "../../src/components/ReviewSubmitForm";
 import { localizeCategory } from "../../src/utils/categoryMap";
 import { cozyTheme } from "../../src/utils/theme";
+import { useAuth } from "../../src/providers/AuthProvider";
+import { useSubmitReview } from "../../src/hooks/useSubmitReview";
+import type { Review } from "../../src/types/review";
 
 const colors = cozyTheme.colors;
 
@@ -65,7 +69,13 @@ export default function RestaurantDetailScreen() {
   const isLoading = !storeMatchesId && dbLoading;
 
   const [reviewExpanded, setReviewExpanded] = useState(false);
+  const [reviewFormOpen, setReviewFormOpen] = useState(false);
+  const [editingReview, setEditingReview] = useState<Review | null>(null);
   const { toast, showToast } = useToast();
+
+  // ── 인증 + 리뷰 mutation
+  const { isAuthenticated } = useAuth();
+  const { remove: removeReview, isSubmitting: isReviewSubmitting } = useSubmitReview();
 
   // ── 도메인 훅 (restaurant ID 기반 병렬 조회)
   const { isFavorite, toggleFavorite, isToggling } = useFavorites();
@@ -169,6 +179,58 @@ export default function RestaurantDetailScreen() {
     Linking.openURL(`tel:${phone}`).catch(() =>
       Alert.alert("오류", "전화 앱을 열 수 없습니다.")
     );
+  };
+
+  // ── 리뷰 작성/수정/삭제 핸들러
+  const myReview = reviewData
+    ? [...(reviewData.positiveReviews ?? []),
+       ...(reviewData.negativeReviews ?? []),
+       ...(reviewData.neutralReviews ?? [])].find((r) => r.isMine)
+    : undefined;
+
+  const handleOpenReviewForm = () => {
+    if (!isAuthenticated) {
+      Alert.alert(
+        "로그인 필요",
+        "리뷰를 작성하려면 먼저 로그인해주세요.",
+        [{ text: "확인" }]
+      );
+      return;
+    }
+    setEditingReview(null);
+    setReviewFormOpen(true);
+  };
+
+  const handleEditMyReview = (review: Review) => {
+    setEditingReview(review);
+    setReviewFormOpen(true);
+  };
+
+  const handleDeleteMyReview = (review: Review) => {
+    Alert.alert(
+      "리뷰 삭제",
+      "내가 작성한 리뷰를 삭제할까요? 되돌릴 수 없습니다.",
+      [
+        { text: "취소", style: "cancel" },
+        {
+          text: "삭제",
+          style: "destructive",
+          onPress: () => {
+            removeReview.mutate(
+              { reviewId: review.id, restaurantId: restaurant.id },
+              {
+                onSuccess: () => showToast("리뷰를 삭제했습니다", "info"),
+                onError: () => showToast("삭제에 실패했습니다", "error"),
+              }
+            );
+          },
+        },
+      ]
+    );
+  };
+
+  const handleReviewFormSuccess = (mode: "create" | "edit") => {
+    showToast(mode === "create" ? "리뷰가 등록되었습니다" : "리뷰가 수정되었습니다", "info");
   };
 
   const isKR = restaurant.region === "KR";
@@ -516,7 +578,47 @@ export default function RestaurantDetailScreen() {
 
       {/* ── 리뷰 요약 + 카드 ── */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>리뷰</Text>
+        <View style={styles.reviewHeaderRow}>
+          <Text style={styles.sectionTitle}>리뷰</Text>
+          {!reviewFormOpen && !myReview && (
+            <TouchableOpacity
+              style={styles.writeReviewBtn}
+              onPress={handleOpenReviewForm}
+              accessibilityLabel="리뷰 작성"
+              accessibilityRole="button"
+            >
+              <Text style={styles.writeReviewText}>+ 내 리뷰 작성</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {reviewFormOpen && (
+          <View style={styles.formWrapper}>
+            <ReviewSubmitForm
+              restaurantId={restaurant.id}
+              existingReview={editingReview ?? undefined}
+              onClose={() => {
+                setReviewFormOpen(false);
+                setEditingReview(null);
+              }}
+              onSuccess={handleReviewFormSuccess}
+            />
+          </View>
+        )}
+
+        {!isAuthenticated && !reviewFormOpen && (
+          <TouchableOpacity
+            style={styles.loginPrompt}
+            onPress={() => router.push("/(auth)/login" as never)}
+            accessibilityRole="button"
+            accessibilityLabel="로그인하고 리뷰 작성"
+          >
+            <Text style={styles.loginPromptText}>
+              💬 로그인하면 직접 리뷰를 남길 수 있어요 →
+            </Text>
+          </TouchableOpacity>
+        )}
+
         {reviewLoading ? (
           <View style={styles.infoCard}>
             <ActivityIndicator size="small" color="#FF6B35" />
@@ -608,7 +710,12 @@ export default function RestaurantDetailScreen() {
               : reviewData.positiveReviews.slice(0, 2)
             ).map((review) => (
               <View key={review.id} style={styles.reviewCardWrapper}>
-                <ReviewCard review={review} maxLines={reviewExpanded ? undefined : 4} />
+                <ReviewCard
+                  review={review}
+                  maxLines={reviewExpanded ? undefined : 4}
+                  onEdit={review.isMine && !isReviewSubmitting ? handleEditMyReview : undefined}
+                  onDelete={review.isMine && !isReviewSubmitting ? handleDeleteMyReview : undefined}
+                />
               </View>
             ))}
 
@@ -618,7 +725,12 @@ export default function RestaurantDetailScreen() {
               : reviewData.negativeReviews.slice(0, 1)
             ).map((review) => (
               <View key={review.id} style={styles.reviewCardWrapper}>
-                <ReviewCard review={review} maxLines={reviewExpanded ? undefined : 4} />
+                <ReviewCard
+                  review={review}
+                  maxLines={reviewExpanded ? undefined : 4}
+                  onEdit={review.isMine && !isReviewSubmitting ? handleEditMyReview : undefined}
+                  onDelete={review.isMine && !isReviewSubmitting ? handleDeleteMyReview : undefined}
+                />
               </View>
             ))}
 
@@ -626,7 +738,11 @@ export default function RestaurantDetailScreen() {
             {reviewExpanded &&
               reviewData.neutralReviews?.map((review) => (
                 <View key={review.id} style={styles.reviewCardWrapper}>
-                  <ReviewCard review={review} />
+                  <ReviewCard
+                    review={review}
+                    onEdit={review.isMine && !isReviewSubmitting ? handleEditMyReview : undefined}
+                    onDelete={review.isMine && !isReviewSubmitting ? handleDeleteMyReview : undefined}
+                  />
                 </View>
               ))}
 
@@ -979,4 +1095,40 @@ const styles = StyleSheet.create({
     paddingRight: 4,
   },
   bottomPad: { height: 24 },
+
+  // ── 사용자 리뷰 작성 ── (Phase 19)
+  reviewHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 4,
+  },
+  writeReviewBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 999,
+    backgroundColor: colors.primary,
+  },
+  writeReviewText: {
+    fontSize: 12,
+    color: "#fff",
+    fontWeight: "700",
+  },
+  formWrapper: {
+    marginBottom: 10,
+  },
+  loginPrompt: {
+    backgroundColor: colors.surfaceSoft,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: cozyTheme.radius.md,
+    padding: 12,
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  loginPromptText: {
+    fontSize: 13,
+    color: colors.primary,
+    fontWeight: "600",
+  },
 });

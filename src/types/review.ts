@@ -15,6 +15,8 @@ export interface Review {
   sentiment?: ReviewSentiment; // Edge Function 분류 결과. 없으면 neutral 취급.
   authorName?: string;      // 작성자 이름 (개인정보 주의)
   createdAt: string;        // ISO 8601
+  userId?: string | null;   // Phase 19: 사용자 작성 리뷰일 때만 존재. 외부 수집은 NULL.
+  isMine?: boolean;         // Phase 19: 클라이언트에서 현재 user와 매칭한 결과
 }
 
 /** 리뷰 요약 — 긍정/부정 반드시 분리 */

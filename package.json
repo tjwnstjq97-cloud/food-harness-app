@@ -9,7 +9,8 @@
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
     "validate": "python3 harness/validators/run_all.py",
-    "check": "npm run typecheck && npm run validate",
+    "validate:fail": "python3 harness/validators/test_fail_cases.py",
+    "check": "npm run typecheck && npm run validate && npm run validate:fail",
     "deploy:fn": "supabase functions deploy search-restaurant --project-ref hvucxypkwezwquejhlzg --no-verify-jwt"
   },
   "dependencies": {

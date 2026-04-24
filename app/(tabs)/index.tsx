@@ -455,6 +455,11 @@ export default function HomeScreen() {
               keyboardShouldPersistTaps="handled"
               keyboardDismissMode="on-drag"
               showsVerticalScrollIndicator={false}
+              // 성능 튜닝 (Phase 23)
+              initialNumToRender={8}
+              maxToRenderPerBatch={8}
+              windowSize={11}
+              removeClippedSubviews
               onEndReachedThreshold={0.3}
               onEndReached={() => {
                 if (data.hasMore && !activeCategory) {

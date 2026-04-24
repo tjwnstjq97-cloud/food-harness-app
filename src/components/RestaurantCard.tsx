@@ -5,6 +5,7 @@
  * - savedAt: 즐겨찾기 저장일 표시
  * - visitCount: 방문 횟수 배지 (2회 이상)
  */
+import { memo } from "react";
 import { View, Text, TouchableOpacity, Image, StyleSheet } from "react-native";
 import type { Restaurant } from "../types/restaurant";
 import { localizeCategory } from "../utils/categoryMap";
@@ -24,7 +25,7 @@ interface Props {
   visitCount?: number;
 }
 
-export function RestaurantCard({
+function RestaurantCardImpl({
   restaurant,
   onPress,
   showFavorite = false,
@@ -35,12 +36,19 @@ export function RestaurantCard({
   visitCount,
 }: Props) {
   const hasThumbnail = !!restaurant.thumbnailUrl;
+  const regionLabel = restaurant.region === "KR" ? "한국" : "해외";
+  const a11yLabel =
+    `${restaurant.name}, ${regionLabel}` +
+    (restaurant.category ? `, ${localizeCategory(restaurant.category)}` : "");
 
   return (
     <TouchableOpacity
       style={styles.card}
       activeOpacity={0.75}
       onPress={() => onPress?.(restaurant)}
+      accessibilityRole="button"
+      accessibilityLabel={a11yLabel}
+      accessibilityHint="음식점 상세로 이동"
     >
       <View style={styles.row}>
         {/* 썸네일 */}
@@ -49,6 +57,7 @@ export function RestaurantCard({
             source={{ uri: restaurant.thumbnailUrl }}
             style={styles.thumbnail}
             resizeMode="cover"
+            accessible={false}
           />
         )}
 
@@ -61,6 +70,11 @@ export function RestaurantCard({
               <TouchableOpacity
                 onPress={() => onFavoriteToggle?.(restaurant)}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  isFavorite ? "즐겨찾기에서 제거" : "즐겨찾기에 추가"
+                }
+                accessibilityState={{ selected: isFavorite }}
               >
                 <Text style={[styles.heart, isFavorite && styles.heartActive]}>
                   {isFavorite ? "♥" : "♡"}
@@ -110,6 +124,12 @@ export function RestaurantCard({
     </TouchableOpacity>
   );
 }
+
+/**
+ * RestaurantCard는 검색 결과/즐겨찾기/히스토리 리스트에서 다수 렌더링되므로 memo로 감싼다.
+ * props는 모두 primitive + restaurant 객체 ref → 부모에서 데이터 변경 없으면 재렌더 스킵.
+ */
+export const RestaurantCard = memo(RestaurantCardImpl);
 
 const styles = StyleSheet.create({
   card: {

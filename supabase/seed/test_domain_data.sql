@@ -4,14 +4,16 @@
 --
 -- 실행 방법: Supabase 대시보드 > SQL Editor > 이 파일 붙여넣기 > Run
 -- 전제조건:
---   1. 001, 002, 003 마이그레이션 실행 완료
+--   1. 001, 002, 003, 004 마이그레이션 실행 완료
+--      (004는 reviews.user_id 컬럼을 추가 — 이 시드의 DELETE 절에서 참조함)
 --   2. test_restaurants.sql 실행 완료 (test_kr_001 ~ test_gl_004 존재)
 -- ================================================
 
 -- ========================================
 -- 기존 테스트 도메인 데이터 제거
+-- 외부 수집 시드(user_id IS NULL)만 제거. 사용자 본인 작성 리뷰(user_id IS NOT NULL)는 보존.
 -- ========================================
-DELETE FROM public.reviews      WHERE restaurant_id LIKE 'test_%';
+DELETE FROM public.reviews      WHERE restaurant_id LIKE 'test_%' AND user_id IS NULL;
 DELETE FROM public.menus        WHERE restaurant_id LIKE 'test_%';
 DELETE FROM public.reservations WHERE restaurant_id LIKE 'test_%';
 DELETE FROM public.waiting      WHERE restaurant_id LIKE 'test_%';
@@ -85,6 +87,43 @@ VALUES
   ('test_gl_001', 'Amazing solo dining concept. The rich tonkotsu broth is absolutely perfect!', 5.0, 'google', 'positive', NULL),
   ('test_gl_001', 'Unique experience eating alone in a booth. Broth could be a bit richer.', 4.0, 'google', 'positive', NULL),
   ('test_gl_001', 'Queue was very long. Waited over 40 minutes.', 3.0, 'google', 'negative', NULL);
+
+-- ========================================
+-- Phase 18 — 부정 키워드 확장 테스트용 시드 (사용자 요청)
+-- 키워드: 불친절 / 흡연 / 서빙 지연 / 냄새 / 차별 / 위생 / 시끄러움
+-- ========================================
+
+-- 명동 칼국수 (test_kr_001) — 불친절/서빙 지연/위생/시끄러움 추가
+INSERT INTO public.reviews
+  (restaurant_id, text, rating, source, sentiment, author_name)
+VALUES
+  ('test_kr_001', '직원이 무례하고 응대가 별로였어요. 다시는 안 갈 듯.', 1.5, 'naver', 'negative', NULL),
+  ('test_kr_001', '주문하고 한참 만에 음식이 나와서 다 식었어요. 음식이 늦게 나오는 게 너무 심함.', 2.0, 'kakao', 'negative', NULL),
+  ('test_kr_001', '테이블이 좀 지저분했고, 수저에서 머리카락 발견. 위생 관리 신경 써주세요.', 1.0, 'naver', 'negative', NULL),
+  ('test_kr_001', '점심에 사람이 너무 많아서 시끄러웠어요. 대화가 안 될 정도.', 3.0, 'kakao', 'negative', NULL);
+
+-- 강남 스시 오마카세 (test_kr_002) — 흡연/시끄러움 추가
+INSERT INTO public.reviews
+  (restaurant_id, text, rating, source, sentiment, author_name)
+VALUES
+  ('test_kr_002', '입구 쪽 흡연 구역이 가까워서 들어갈 때 담배 냄새가 너무 났어요.', 2.5, 'naver', 'negative', NULL),
+  ('test_kr_002', '옆 테이블 손님들이 너무 시끄러워서 셰프님 설명이 잘 안 들렸어요.', 3.0, 'kakao', 'negative', NULL);
+
+-- 이태원 버거 바 (test_kr_003) — 차별/불친절/냄새 추가 (외국인 거리 특성 반영)
+INSERT INTO public.reviews
+  (restaurant_id, text, rating, source, sentiment, author_name)
+VALUES
+  ('test_kr_003', '외국인 손님과 한국인 손님 응대 태도가 너무 달라요. 차별받는 느낌.', 1.5, 'naver', 'negative', NULL),
+  ('test_kr_003', '주방 쪽에서 기름 쩐내가 계속 나서 식사 내내 불편했어요.', 2.0, 'kakao', 'negative', NULL),
+  ('test_kr_003', '직원이 버릇없이 반말로 응대해서 기분 나빴습니다.', 1.5, 'naver', 'negative', NULL);
+
+-- Ichiran Ramen (test_gl_001) — 영문 부정 키워드 (rude/smell/dirty)
+INSERT INTO public.reviews
+  (restaurant_id, text, rating, source, sentiment, author_name)
+VALUES
+  ('test_gl_001', 'Staff was rude and had a bad attitude when I asked for water.', 2.0, 'google', 'negative', NULL),
+  ('test_gl_001', 'Strong smoke smell from outside the entrance, very unpleasant.', 2.5, 'google', 'negative', NULL),
+  ('test_gl_001', 'Tables were dirty and the bathroom hygiene was unacceptable.', 1.5, 'google', 'negative', NULL);
 
 
 -- ========================================

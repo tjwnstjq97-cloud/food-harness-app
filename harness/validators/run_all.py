@@ -21,6 +21,8 @@ from security.hardcoded_key import validate as validate_hardcoded_key
 from security.env_access import validate as validate_env_access
 from security.service_role_key import validate as validate_service_role
 from review.review_sentiment import validate as validate_review_sentiment
+from review.user_review_ownership import validate as validate_user_review_ownership
+from review.no_oneline_summary import validate as validate_no_oneline_summary
 from security.pii_in_logs import validate as validate_pii_in_logs
 from security.console_debug import validate as validate_console_debug
 from data.restaurant_region_required import validate as validate_region_required
@@ -74,6 +76,8 @@ VALIDATORS = [
     ("env_access", validate_env_access),
     ("service_role_key", validate_service_role),
     ("review_sentiment", validate_review_sentiment),
+    ("user_review_ownership", validate_user_review_ownership),
+    ("no_oneline_summary", validate_no_oneline_summary),
     ("pii_in_logs", validate_pii_in_logs),
     ("console_debug", validate_console_debug),
     ("restaurant_region_required", validate_region_required),
