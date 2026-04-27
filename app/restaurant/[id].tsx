@@ -26,6 +26,8 @@ import {
   StyleSheet,
   ActivityIndicator,
   Share,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import { useSelectedRestaurantStore } from "../../src/stores/selectedRestaurantStore";
@@ -38,7 +40,8 @@ import { useWaiting } from "../../src/hooks/useWaiting";
 import { useSignatureMenus } from "../../src/hooks/useMenus";
 import { openRestaurantMap } from "../../src/utils/mapLink";
 import { RegionBadge } from "../../src/components/RegionBadge";
-import { LoadingView, Toast, useToast } from "../../src/components/StateViews";
+import { Toast, useToast } from "../../src/components/StateViews";
+import { RestaurantDetailSkeleton } from "../../src/components/Skeleton";
 import { MenuSection } from "../../src/components/MenuSection";
 import { ReviewCard } from "../../src/components/ReviewCard";
 import { ReviewSubmitForm } from "../../src/components/ReviewSubmitForm";
@@ -96,12 +99,12 @@ export default function RestaurantDetailScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [restaurant?.id]);
 
-  // ── 로딩 중
+  // ── 로딩 중 (Phase D: 스피너 대신 레이아웃 스켈레톤)
   if (isLoading) {
     return (
       <>
         <Stack.Screen options={{ title: "음식점 상세" }} />
-        <LoadingView message="음식점 정보 불러오는 중..." />
+        <RestaurantDetailSkeleton />
       </>
     );
   }
@@ -243,10 +246,16 @@ export default function RestaurantDetailScreen() {
 
   return (
     <View style={styles.wrapper}>
+    <KeyboardAvoidingView
+      style={styles.kbAvoider}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
+    >
     <ScrollView
       style={styles.container}
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
     >
       <Stack.Screen
         options={{
@@ -771,6 +780,7 @@ export default function RestaurantDetailScreen() {
 
       <View style={styles.bottomPad} />
     </ScrollView>
+    </KeyboardAvoidingView>
     <Toast visible={toast.visible} message={toast.message} type={toast.type} />
     </View>
   );
@@ -778,6 +788,7 @@ export default function RestaurantDetailScreen() {
 
 const styles = StyleSheet.create({
   wrapper: { flex: 1 },
+  kbAvoider: { flex: 1 },
   container: { flex: 1, backgroundColor: colors.background },
   content: { paddingBottom: 32 },
 

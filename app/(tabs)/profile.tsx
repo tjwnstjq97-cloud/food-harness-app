@@ -27,6 +27,8 @@ import { useSelectedRestaurantStore } from "../../src/stores/selectedRestaurantS
 import { RestaurantCard } from "../../src/components/RestaurantCard";
 import { LoadingView, ErrorView, EmptyView } from "../../src/components/StateViews";
 import { SettingsModal } from "../../src/components/SettingsModal";
+import { DisplayNameModal } from "../../src/components/DisplayNameModal";
+import { shareUserDataExport } from "../../src/utils/exportData";
 import type { HistoryRow } from "../../src/types/restaurant";
 import type { Restaurant } from "../../src/types/restaurant";
 
@@ -49,6 +51,25 @@ export default function ProfileScreen() {
   const { data: favorites } = useFavorites();
   const [signingOut, setSigningOut] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [displayNameOpen, setDisplayNameOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
+
+  const handleExport = useCallback(async () => {
+    if (!user) return;
+    setExporting(true);
+    try {
+      await shareUserDataExport({
+        userId: user.id,
+        history: history ?? [],
+        favorites: favorites ?? [],
+      });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "내보내기에 실패했습니다.";
+      Alert.alert("내보내기 실패", msg);
+    } finally {
+      setExporting(false);
+    }
+  }, [user, history, favorites]);
 
   // 히스토리를 날짜 기준으로 그룹핑
   const historySections = useMemo(() => {
@@ -156,6 +177,11 @@ export default function ProfileScreen() {
       </View>
 
       <SettingsModal visible={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <DisplayNameModal
+        visible={displayNameOpen}
+        currentName={user?.displayName ?? null}
+        onClose={() => setDisplayNameOpen(false)}
+      />
 
       <SectionList
         sections={historySections}
@@ -179,16 +205,47 @@ export default function ProfileScreen() {
             <View style={styles.profileCard}>
               <View style={styles.avatar}>
                 <Text style={styles.avatarText}>
-                  {user?.email?.charAt(0).toUpperCase() ?? "?"}
+                  {(user?.displayName?.charAt(0) ??
+                    user?.email?.charAt(0) ??
+                    "?").toUpperCase()}
                 </Text>
               </View>
               <View style={styles.profileInfo}>
                 <Text style={styles.email} numberOfLines={1}>
-                  {user?.email}
+                  {user?.displayName?.trim() || user?.email}
                 </Text>
+                {!!user?.displayName?.trim() && (
+                  <Text style={styles.joinedAt} numberOfLines={1}>
+                    {user.email}
+                  </Text>
+                )}
                 <Text style={styles.joinedAt}>가입일: {joinedDate}</Text>
               </View>
+              <TouchableOpacity
+                style={styles.editNameBtn}
+                onPress={() => setDisplayNameOpen(true)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                accessibilityRole="button"
+                accessibilityLabel="이름 변경"
+              >
+                <Text style={styles.editNameText}>✎</Text>
+              </TouchableOpacity>
             </View>
+
+            {/* 데이터 내보내기 (Phase E) */}
+            <TouchableOpacity
+              style={[styles.exportBtn, exporting && styles.signOutBtnDisabled]}
+              onPress={handleExport}
+              disabled={exporting || (!history?.length && !favorites?.length)}
+              accessibilityRole="button"
+              accessibilityLabel="내 데이터 내보내기"
+            >
+              <Text style={styles.exportText}>
+                {exporting
+                  ? "내보내는 중..."
+                  : "📤 내 데이터 내보내기 (JSON)"}
+              </Text>
+            </TouchableOpacity>
 
             {/* 통계 카드 */}
             <View style={styles.statsRow}>
@@ -365,6 +422,29 @@ const styles = StyleSheet.create({
   },
   signOutBtnDisabled: { opacity: 0.5 },
   signOutText: { fontSize: 14, fontWeight: "600", color: "#FF6B35" },
+
+  editNameBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#fff5ef",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#ffd5c8",
+  },
+  editNameText: { fontSize: 16, color: "#FF6B35", fontWeight: "700" },
+
+  exportBtn: {
+    backgroundColor: "#fff",
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: "center",
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: "#e7e7e7",
+  },
+  exportText: { fontSize: 13, fontWeight: "600", color: "#555" },
 
   sectionHeader: {
     flexDirection: "row",

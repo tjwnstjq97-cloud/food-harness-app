@@ -26,5 +26,22 @@ export function useAuthActions() {
     if (error) throw error;
   };
 
-  return { signUp, signIn, signOut };
+  /**
+   * 디스플레이 이름 업데이트 (Phase E)
+   * auth.users.raw_user_meta_data.display_name 갱신.
+   * 빈 문자열은 null로 정규화 (이메일 fallback이 동작하도록).
+   */
+  const updateDisplayName = async (displayName: string | null) => {
+    const normalized = displayName?.trim() ? displayName.trim() : null;
+    if (normalized && normalized.length > 30) {
+      throw new Error("이름은 30자 이내로 입력해주세요.");
+    }
+    const { data, error } = await supabase.auth.updateUser({
+      data: { display_name: normalized },
+    });
+    if (error) throw error;
+    return data;
+  };
+
+  return { signUp, signIn, signOut, updateDisplayName };
 }

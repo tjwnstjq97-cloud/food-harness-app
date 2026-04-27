@@ -52,10 +52,19 @@ const MIN_DEBOUNCE_LEN = 2;
 const PAGE_SIZE = 30;
 const colors = cozyTheme.colors;
 
+type SortKey = "default" | "name" | "rating";
+
+const SORT_LABELS: Record<SortKey, string> = {
+  default: "기본순",
+  name: "이름순",
+  rating: "별점순",
+};
+
 export default function HomeScreen() {
   const [query, setQuery] = useState("");
   const [submitted, setSubmitted] = useState("");
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const [sortKey, setSortKey] = useState<SortKey>("default");
   const [limit, setLimit] = useState(PAGE_SIZE);
   const [refreshing, setRefreshing] = useState(false);
   const { region, isKR, setRegion } = useRegion();
@@ -157,7 +166,7 @@ export default function HomeScreen() {
   const categories = useMemo(() => [...categoryMap.keys()].slice(0, 8), [categoryMap]);
 
   // 카테고리 필터 적용
-  const filteredRestaurants = useMemo(() => {
+  const categoryFiltered = useMemo(() => {
     if (!data?.restaurants) return [];
     if (!activeCategory) return data.restaurants;
     return data.restaurants.filter((r) => r.category === activeCategory);
@@ -168,6 +177,34 @@ export default function HomeScreen() {
     [data?.restaurants]
   );
   const { data: cardMetaMap } = useRestaurantCardMeta(restaurantIds);
+
+  /**
+   * 정렬 적용 (Phase F)
+   *  - default: API 응답 순서 유지 (관련도/거리 등 외부 정렬 신뢰)
+   *  - name: 가나다/알파벳 순 (한국어 localeCompare)
+   *  - rating: cardMeta.averageRating 내림차순, 평점 없는 항목은 뒤로
+   *
+   * 주의: 정렬은 클라이언트에서만 수행. 서버 페이지네이션과 별개라 누적 결과 안에서만 정렬됨.
+   *       (region/source 분기 변경 없음 — 표시 정렬만 조정)
+   */
+  const filteredRestaurants = useMemo(() => {
+    if (sortKey === "default") return categoryFiltered;
+    const arr = [...categoryFiltered];
+    if (sortKey === "name") {
+      arr.sort((a, b) => a.name.localeCompare(b.name, "ko"));
+    } else if (sortKey === "rating") {
+      arr.sort((a, b) => {
+        const ra = cardMetaMap?.[a.id]?.averageRating;
+        const rb = cardMetaMap?.[b.id]?.averageRating;
+        // 평점 없는 항목은 뒤로 보냄
+        if (ra == null && rb == null) return 0;
+        if (ra == null) return 1;
+        if (rb == null) return -1;
+        return rb - ra;
+      });
+    }
+    return arr;
+  }, [categoryFiltered, sortKey, cardMetaMap]);
 
   const renderItem = ({ item }: { item: Restaurant }) => {
     const cardMeta = cardMetaMap?.[item.id];
@@ -410,6 +447,38 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </View>
 
+          {/* 정렬 옵션 (Phase F) */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.sortChipList}
+            style={styles.sortChipScroll}
+            accessibilityLabel="정렬 옵션"
+          >
+            {(Object.keys(SORT_LABELS) as SortKey[]).map((k) => {
+              const active = sortKey === k;
+              return (
+                <TouchableOpacity
+                  key={k}
+                  style={[styles.sortChip, active && styles.sortChipActive]}
+                  onPress={() => setSortKey(k)}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: active }}
+                  accessibilityLabel={`${SORT_LABELS[k]} 정렬`}
+                >
+                  <Text
+                    style={[
+                      styles.sortChipText,
+                      active && styles.sortChipTextActive,
+                    ]}
+                  >
+                    {SORT_LABELS[k]}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+
           {/* 카테고리 필터 칩 (개수 포함) */}
           {categories.length >= 2 && (
             <ScrollView
@@ -644,6 +713,24 @@ const styles = StyleSheet.create({
   },
   categoryChipText: { fontSize: 12, color: colors.textMuted, fontWeight: "500" },
   categoryChipTextActive: { color: colors.primary, fontWeight: "700" },
+
+  /* 정렬 칩 (Phase F) */
+  sortChipScroll: { marginTop: 4, marginBottom: 6 },
+  sortChipList: { paddingHorizontal: 12, gap: 6 },
+  sortChip: {
+    paddingHorizontal: 11,
+    paddingVertical: 5,
+    borderRadius: 14,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  sortChipActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  sortChipText: { fontSize: 11, color: colors.textMuted, fontWeight: "600" },
+  sortChipTextActive: { color: "#fff", fontWeight: "800" },
 
   /* 결과 목록 */
   list: { paddingHorizontal: 12, paddingBottom: 24, gap: 8, paddingTop: 4 },

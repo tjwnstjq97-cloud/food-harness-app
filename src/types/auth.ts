@@ -6,6 +6,8 @@ export interface User {
   id: string;
   email: string;
   createdAt: string;
+  /** 사용자 디스플레이 이름 — auth.users.raw_user_meta_data.display_name (Phase E) */
+  displayName?: string | null;
 }
 
 export interface AuthState {

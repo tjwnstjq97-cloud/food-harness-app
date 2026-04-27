@@ -2438,3 +2438,67 @@ npx expo start --ios
 - 신규 파일: useDebounce.ts
 - 수정 파일: useHistory.ts, useSearch.ts, StateViews.tsx, RestaurantCard.tsx, MenuSection.tsx, index.tsx, favorites.tsx, profile.tsx, restaurant/[id].tsx, testing-checklist.md
 
+
+---
+
+## Phase A~F: 자율 추가 작업 (2026-04-27)
+
+사용자 요청: "내가 할 작업말고는 모든 작업이 끝난거야? 그 작업들까지 하고 더 좋은 수정사항 있으면 작업하도록 하고 최대한 많은 작업을 해두도록 해" — 모든 자율 작업 진행 + 추가 개선 발굴.
+
+### Phase A: 첫 진입 region 온보딩
+- 신규 store: `src/stores/onboardingStore.ts` (Zustand persist + AsyncStorage)
+  - `onboarded` 플래그를 partialize로만 저장, `hydrated`는 런타임 전용
+  - `onRehydrateStorage` → `setHydrated(true)`로 라우팅 결정 시점 보장
+- 신규 라우트: `app/(onboarding)/_layout.tsx` (headerShown:false), `app/(onboarding)/region.tsx`
+  - KR/GLOBAL 카드 라디오 선택, cozyTheme accent 색
+  - confirm 시 `setRegion` → `complete()` → `router.replace('/(tabs)')`
+- 라우팅 가드: `app/_layout.tsx` AuthGuard에 onboarding 분기 추가
+  - hydration 전엔 라우팅 보류, `!onboarded`면 (onboarding)/region으로 강제 이동
+  - 온보딩 완료된 사용자가 (onboarding) 그룹에 머물면 (tabs)로 이동
+- **버그 수정**: regionStore도 persist로 전환
+  - 기존: 사용자가 GLOBAL 선택 → 재시작 시 KR로 리셋되는 결함
+  - `migrate()`로 손상된 값은 KR 기본값으로 복구
+
+### Phase B: KeyboardAvoidingView
+- login/register는 이미 적용되어 있어 검토만
+- `app/restaurant/[id].tsx`의 ScrollView를 KeyboardAvoidingView로 감쌈
+  - iOS: `behavior="padding"`, `keyboardVerticalOffset=90`
+  - `keyboardShouldPersistTaps="handled"` 추가 → 키보드 위 버튼 첫 탭에 동작
+
+### Phase C: 즐겨찾기 낙관적 업데이트
+- `useFavorites.ts` add/remove 양쪽에 `onMutate`/`onError`/`onSettled` 적용
+  - mutate 즉시 캐시 반영 → 토글 UI 즉시 응답
+  - 실패 시 `previous`로 롤백, 성공/실패 모두 invalidate로 서버 진실 동기화
+- 임시 row id에 `optimistic-` prefix sentinel 사용 (실제 row와 구분)
+
+### Phase D: Skeleton loader (상세 페이지)
+- 신규 컴포넌트: `src/components/Skeleton.tsx`
+  - `SkeletonBox`: Animated.Value 기반 fade loop (0.4 ↔ 0.85, 700ms)
+  - `RestaurantDetailSkeleton`: 상세 페이지 레이아웃을 모사한 자리표시자
+- `app/restaurant/[id].tsx`의 `LoadingView` 교체
+
+### Phase E: 디스플레이 이름 + 데이터 내보내기
+- `User` 타입에 `displayName?: string | null` 추가
+  - AuthProvider에서 `session.user.user_metadata.display_name` 매핑
+- `useAuthActions.updateDisplayName` 추가 (30자 제한, 빈 문자열은 null로 정규화)
+- 신규 컴포넌트: `src/components/DisplayNameModal.tsx` (KeyboardAvoidingView 포함)
+- 신규 유틸: `src/utils/exportData.ts`
+  - `buildExportPayload`: 직렬화 (version:1, exportedAt, userId, history, favorites, counts)
+  - `shareUserDataExport`: React Native `Share.share`로 시스템 공유 시트 호출
+  - 보안: caller가 user_id 필터링한 결과만 전달, 민감 필드 없음
+- 프로필 화면:
+  - 아바타/이름이 `displayName ?? email` 표시, 옆에 ✎ 편집 버튼
+  - "📤 내 데이터 내보내기 (JSON)" 버튼 (history/favorites 모두 비면 비활성)
+
+### Phase F: 검색 결과 정렬 옵션
+- `app/(tabs)/index.tsx`에 `SortKey = 'default' | 'name' | 'rating'` 추가
+  - default: API 응답 순서 유지
+  - name: `localeCompare(b.name, 'ko')`
+  - rating: `cardMeta.averageRating` 내림차순, 평점 없는 항목은 뒤로
+- 결과 헤더 아래에 정렬 칩 ScrollView 배치 (a11y: radio role + selected state)
+- 클라이언트 정렬만 수행 → region/source 분기 영향 없음
+
+### 검증 결과 (Phase A~F)
+- TypeScript: 0 errors
+- Validators: 18/18 PASS
+- Fail cases: 7/7 detected
