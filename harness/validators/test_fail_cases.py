@@ -11,7 +11,7 @@ from base.no_sensitive_logs import validate as v_sensitive
 from region.region_logic import validate as v_region
 from review.review_source import validate as v_review
 from review.user_review_ownership import validate as v_user_review_ownership
-from review.no_oneline_summary import validate as v_no_oneline_summary
+from review.summary_source_required import validate as v_summary_source
 from reservation.reservation_check import validate as v_reservation
 
 FAIL_CASES = [
@@ -45,18 +45,20 @@ FAIL_CASES = [
         v_user_review_ownership,
         {"reviews": [{"text": "직접 작성", "rating": 5.0, "source": "user"}]},  # user_id 없음
     ),
+    (
+        "자동 요약에 sources 비어있음",
+        v_summary_source,
+        {
+            "review_summary_v2": {
+                "positivePoints": ["맛있다"],
+                "negativePoints": [],
+                "totalReviewCount": 5,
+                "sources": [],  # 출처 없음 — 실패해야 함
+                "generatedAt": "2026-04-28T00:00:00Z",
+            }
+        },
+    ),
 ]
-
-
-def _test_no_oneline_summary_detects_forbidden_pattern() -> bool:
-    """no_oneline_summary 검사가 임시 디렉터리 내 금지 패턴을 잡는지 확인."""
-    import tempfile
-    with tempfile.TemporaryDirectory() as tmp:
-        bad = os.path.join(tmp, "bad.ts")
-        with open(bad, "w", encoding="utf-8") as f:
-            f.write("export function summarizeReview(r: string) { return r; }\n")
-        result = v_no_oneline_summary({"project_root": tmp})
-        return not result["valid"]
 
 print("=" * 50)
 print("실패 케이스 검증")
@@ -70,14 +72,6 @@ for desc, validator_fn, data in FAIL_CASES:
         all_correct = False
     else:
         print(f"  [OK] {desc} -> {result['error']}")
-
-# 임시 파일 기반 테스트 (run_all 통합이 어려운 케이스)
-extra_ok = _test_no_oneline_summary_detects_forbidden_pattern()
-if extra_ok:
-    print("  [OK] no_oneline_summary - 임시 디렉터리 금지 패턴 탐지")
-else:
-    print("  [ERROR] no_oneline_summary - 임시 디렉터리 금지 패턴 미탐지!")
-    all_correct = False
 
 print("=" * 50)
 if all_correct:

@@ -53,3 +53,27 @@ export type ReviewSource = (typeof REVIEW_SOURCES)[number];
 
 // (Phase 17 정리) isValidReviewSource 제거 — 출처 검증은 hasValidSource(!!source)
 // 만으로 충분하며, ReviewSource 타입 매칭은 사용처가 없었음.
+
+// ─── Phase 21+ 자동 요약 (외부 리뷰 → Claude 요약) ───────────
+
+/** 출처 메타 — 자동 요약 결과의 attribution */
+export interface SummarySource {
+  type: string;            // "naver_blog" | "google_review"
+  count: number;
+  urls: string[];
+}
+
+/** AI 자동 요약 결과 */
+export interface ReviewSummaryV2 {
+  positivePoints: string[];
+  negativePoints: string[];
+  totalReviewCount: number;
+  sources: SummarySource[];
+  generatedAt: string;
+}
+
+/** 출처 type 한글 라벨 */
+export const SUMMARY_SOURCE_LABELS: Record<string, string> = {
+  naver_blog: "네이버 블로그",
+  google_review: "구글 리뷰",
+};

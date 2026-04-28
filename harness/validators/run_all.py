@@ -22,11 +22,11 @@ from security.env_access import validate as validate_env_access
 from security.service_role_key import validate as validate_service_role
 from review.review_sentiment import validate as validate_review_sentiment
 from review.user_review_ownership import validate as validate_user_review_ownership
-from review.no_oneline_summary import validate as validate_no_oneline_summary
 from security.pii_in_logs import validate as validate_pii_in_logs
 from security.console_debug import validate as validate_console_debug
 from data.restaurant_region_required import validate as validate_region_required
 from data.menu_source_required import validate as validate_menu_source
+from review.summary_source_required import validate as validate_summary_source
 
 # 더미 테스트 데이터 (정상 케이스)
 SAMPLE_DATA = {
@@ -61,6 +61,16 @@ SAMPLE_DATA = {
         {"name": "된장찌개", "price": 9000, "priceStatus": "confirmed", "source": "naver_place", "isSignature": True},
         {"name": "김치찌개", "price": 8000, "priceStatus": "estimated", "source": "user_input", "isSignature": False},
     ],
+    "review_summary_v2": {
+        "positivePoints": ["국물이 진하다", "친절한 응대"],
+        "negativePoints": ["웨이팅이 길다"],
+        "totalReviewCount": 8,
+        "sources": [
+            {"type": "naver_blog", "count": 5, "urls": ["https://blog.naver.com/x"]},
+            {"type": "google_review", "count": 3, "urls": []},
+        ],
+        "generatedAt": "2026-04-28T00:00:00Z",
+    },
 }
 
 VALIDATORS = [
@@ -77,11 +87,11 @@ VALIDATORS = [
     ("service_role_key", validate_service_role),
     ("review_sentiment", validate_review_sentiment),
     ("user_review_ownership", validate_user_review_ownership),
-    ("no_oneline_summary", validate_no_oneline_summary),
     ("pii_in_logs", validate_pii_in_logs),
     ("console_debug", validate_console_debug),
     ("restaurant_region_required", validate_region_required),
     ("menu_source_required", validate_menu_source),
+    ("summary_source_required", validate_summary_source),
 ]
 
 

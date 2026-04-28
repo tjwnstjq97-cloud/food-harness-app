@@ -35,6 +35,7 @@ import { useRestaurantById } from "../../src/hooks/useRestaurantById";
 import { useFavorites } from "../../src/hooks/useFavorites";
 import { useHistory } from "../../src/hooks/useHistory";
 import { useReviews } from "../../src/hooks/useReviews";
+import { useReviewSummary } from "../../src/hooks/useReviewSummary";
 import { useReservation } from "../../src/hooks/useReservation";
 import { useWaiting } from "../../src/hooks/useWaiting";
 import { useSignatureMenus } from "../../src/hooks/useMenus";
@@ -43,13 +44,12 @@ import { RegionBadge } from "../../src/components/RegionBadge";
 import { Toast, useToast } from "../../src/components/StateViews";
 import { RestaurantDetailSkeleton } from "../../src/components/Skeleton";
 import { MenuSection } from "../../src/components/MenuSection";
-import { ReviewCard } from "../../src/components/ReviewCard";
-import { ReviewSubmitForm } from "../../src/components/ReviewSubmitForm";
+import { ReviewSummaryView } from "../../src/components/ReviewSummaryView";
+// NOTE: ReviewSubmitForm/useSubmitReview/ReviewCard 는 외부 자동 요약 도입(Phase 21+)으로
+// 사용자 직접 작성 UI는 숨김. 코드/DB/RLS는 향후 "내 메모" 기능 부활 대비 보존.
 import { localizeCategory } from "../../src/utils/categoryMap";
 import { cozyTheme } from "../../src/utils/theme";
 import { useAuth } from "../../src/providers/AuthProvider";
-import { useSubmitReview } from "../../src/hooks/useSubmitReview";
-import type { Review } from "../../src/types/review";
 
 const colors = cozyTheme.colors;
 
@@ -71,19 +71,29 @@ export default function RestaurantDetailScreen() {
   const restaurant = storeMatchesId ? storeRestaurant : (dbRestaurant ?? null);
   const isLoading = !storeMatchesId && dbLoading;
 
-  const [reviewExpanded, setReviewExpanded] = useState(false);
-  const [reviewFormOpen, setReviewFormOpen] = useState(false);
-  const [editingReview, setEditingReview] = useState<Review | null>(null);
   const { toast, showToast } = useToast();
 
-  // ── 인증 + 리뷰 mutation
+  // ── 인증 (즐겨찾기 등 다른 기능에서 사용)
   const { isAuthenticated } = useAuth();
-  const { remove: removeReview, isSubmitting: isReviewSubmitting } = useSubmitReview();
 
   // ── 도메인 훅 (restaurant ID 기반 병렬 조회)
   const { isFavorite, toggleFavorite, isToggling } = useFavorites();
   const { addVisit } = useHistory();
-  const { data: reviewData, isLoading: reviewLoading } = useReviews(id ?? "");
+  const { data: reviewData } = useReviews(id ?? "");
+  const {
+    data: reviewSummary,
+    isLoading: summaryLoading,
+    isError: summaryError,
+    refetch: refetchSummary,
+  } = useReviewSummary({
+    restaurantId: id ?? "",
+    restaurantName: storeMatchesId
+      ? storeRestaurant?.name ?? ""
+      : dbRestaurant?.name ?? "",
+    region: (storeMatchesId
+      ? storeRestaurant?.region
+      : dbRestaurant?.region) ?? "KR",
+  });
   const { data: reservationData, isLoading: reservationLoading } = useReservation(id ?? "");
   const { data: waitingData, isLoading: waitingLoading } = useWaiting(id ?? "");
   const { signatures: signatureMenus, isLoading: menuLoading } = useSignatureMenus(id ?? "");
@@ -184,57 +194,8 @@ export default function RestaurantDetailScreen() {
     );
   };
 
-  // ── 리뷰 작성/수정/삭제 핸들러
-  const myReview = reviewData
-    ? [...(reviewData.positiveReviews ?? []),
-       ...(reviewData.negativeReviews ?? []),
-       ...(reviewData.neutralReviews ?? [])].find((r) => r.isMine)
-    : undefined;
-
-  const handleOpenReviewForm = () => {
-    if (!isAuthenticated) {
-      Alert.alert(
-        "로그인 필요",
-        "리뷰를 작성하려면 먼저 로그인해주세요.",
-        [{ text: "확인" }]
-      );
-      return;
-    }
-    setEditingReview(null);
-    setReviewFormOpen(true);
-  };
-
-  const handleEditMyReview = (review: Review) => {
-    setEditingReview(review);
-    setReviewFormOpen(true);
-  };
-
-  const handleDeleteMyReview = (review: Review) => {
-    Alert.alert(
-      "리뷰 삭제",
-      "내가 작성한 리뷰를 삭제할까요? 되돌릴 수 없습니다.",
-      [
-        { text: "취소", style: "cancel" },
-        {
-          text: "삭제",
-          style: "destructive",
-          onPress: () => {
-            removeReview.mutate(
-              { reviewId: review.id, restaurantId: restaurant.id },
-              {
-                onSuccess: () => showToast("리뷰를 삭제했습니다", "info"),
-                onError: () => showToast("삭제에 실패했습니다", "error"),
-              }
-            );
-          },
-        },
-      ]
-    );
-  };
-
-  const handleReviewFormSuccess = (mode: "create" | "edit") => {
-    showToast(mode === "create" ? "리뷰가 등록되었습니다" : "리뷰가 수정되었습니다", "info");
-  };
+  // (Phase 21+ 외부 리뷰 자동 요약으로 전환 — 사용자 직접 작성/수정/삭제 핸들러 제거.
+  //  관련 코드/DB/RLS는 추후 "내 메모" 기능 부활 대비 보존.)
 
   const isKR = restaurant.region === "KR";
   const accentColor = isKR ? colors.kr : colors.global;
@@ -242,7 +203,13 @@ export default function RestaurantDetailScreen() {
   const waitingSummary = waitingData?.displayText ?? "정보 없음";
   const reservationSummary = reservationData?.statusLabel ?? "정보 없음";
   const ratingSummary = reviewData?.totalCount ? reviewData.averageRating.toFixed(1) : "--";
-  const reviewCountSummary = `${reviewData?.totalCount ?? 0}개`;
+  // 자동 요약 우선, fallback으로 DB 카운트
+  const summaryReviewCount = reviewSummary?.totalReviewCount ?? 0;
+  const reviewCountSummary = `${summaryReviewCount > 0 ? summaryReviewCount : reviewData?.totalCount ?? 0}개`;
+  const positiveCountDisplay =
+    reviewSummary?.positivePoints.length ?? reviewData?.positiveCount ?? 0;
+  const negativeCountDisplay =
+    reviewSummary?.negativePoints.length ?? reviewData?.negativeCount ?? 0;
 
   return (
     <View style={styles.wrapper}>
@@ -406,9 +373,9 @@ export default function RestaurantDetailScreen() {
             <View style={styles.metricItem}>
               <Text style={styles.metricLabel}>리뷰 분위기</Text>
               <Text style={styles.metricValue}>
-                👍 {reviewData?.positiveCount ?? 0} / 👎 {reviewData?.negativeCount ?? 0}
+                👍 {positiveCountDisplay} / 👎 {negativeCountDisplay}
               </Text>
-              <Text style={styles.metricSub}>출처 있는 리뷰 기준</Text>
+              <Text style={styles.metricSub}>외부 리뷰 자동 요약</Text>
             </View>
           </View>
         </View>
@@ -585,197 +552,19 @@ export default function RestaurantDetailScreen() {
         </Text>
       </View>
 
-      {/* ── 리뷰 요약 + 카드 ── */}
+      {/* ── 리뷰 요약 (외부 출처 자동 수집 + Claude 요약 — Phase 21+) ── */}
       <View style={styles.section}>
         <View style={styles.reviewHeaderRow}>
-          <Text style={styles.sectionTitle}>리뷰</Text>
-          {!reviewFormOpen && !myReview && (
-            <TouchableOpacity
-              style={styles.writeReviewBtn}
-              onPress={handleOpenReviewForm}
-              accessibilityLabel="리뷰 작성"
-              accessibilityRole="button"
-            >
-              <Text style={styles.writeReviewText}>+ 내 리뷰 작성</Text>
-            </TouchableOpacity>
-          )}
+          <Text style={styles.sectionTitle}>리뷰 요약</Text>
         </View>
-
-        {reviewFormOpen && (
-          <View style={styles.formWrapper}>
-            <ReviewSubmitForm
-              restaurantId={restaurant.id}
-              existingReview={editingReview ?? undefined}
-              onClose={() => {
-                setReviewFormOpen(false);
-                setEditingReview(null);
-              }}
-              onSuccess={handleReviewFormSuccess}
-            />
-          </View>
-        )}
-
-        {!isAuthenticated && !reviewFormOpen && (
-          <TouchableOpacity
-            style={styles.loginPrompt}
-            onPress={() => router.push("/(auth)/login" as never)}
-            accessibilityRole="button"
-            accessibilityLabel="로그인하고 리뷰 작성"
-          >
-            <Text style={styles.loginPromptText}>
-              💬 로그인하면 직접 리뷰를 남길 수 있어요 →
-            </Text>
-          </TouchableOpacity>
-        )}
-
-        {reviewLoading ? (
-          <View style={styles.infoCard}>
-            <ActivityIndicator size="small" color="#FF6B35" />
-          </View>
-        ) : reviewData && reviewData.totalCount > 0 ? (
-          <>
-            {/* 요약 통계 */}
-            <View style={styles.infoCard}>
-              <View style={styles.ratingRow}>
-                <Text style={styles.ratingScore}>
-                  ⭐ {reviewData.averageRating.toFixed(1)}
-                </Text>
-                <Text style={styles.ratingCount}>
-                  ({reviewData.totalCount}개 리뷰)
-                </Text>
-              </View>
-              <View style={styles.sentimentRow}>
-                <View style={styles.sentimentItem}>
-                  <Text>👍</Text>
-                  <Text style={styles.sentimentCount}>
-                    {reviewData.positiveCount}
-                  </Text>
-                </View>
-                <View style={styles.sentimentItem}>
-                  <Text>👎</Text>
-                  <Text style={styles.sentimentCount}>
-                    {reviewData.negativeCount}
-                  </Text>
-                </View>
-                <View style={styles.sentimentItem}>
-                  <Text>💬</Text>
-                  <Text style={styles.sentimentCount}>
-                    {reviewData.neutralCount}
-                  </Text>
-                </View>
-              </View>
-              <Text style={styles.reviewNote}>
-                * 출처 있는 리뷰만 표시됩니다.
-              </Text>
-              {reviewData.highlights.length > 0 && (
-                <View style={styles.highlightSection}>
-                  {reviewData.highlights.some((h) => h.sentiment === "positive") && (
-                    <View style={styles.highlightGroup}>
-                      <Text style={styles.highlightTitle}>장점</Text>
-                      <View style={styles.highlightChips}>
-                        {reviewData.highlights
-                          .filter((h) => h.sentiment === "positive")
-                          .map((highlight) => (
-                            <View
-                              key={`positive-${highlight.keyword}`}
-                              style={[styles.highlightChip, styles.positiveHighlightChip]}
-                            >
-                              <Text style={styles.positiveHighlightText}>
-                                {highlight.keyword}
-                                {highlight.count > 1 ? ` ${highlight.count}` : ""}
-                              </Text>
-                            </View>
-                          ))}
-                      </View>
-                    </View>
-                  )}
-                  {reviewData.highlights.some((h) => h.sentiment === "negative") && (
-                    <View style={styles.highlightGroup}>
-                      <Text style={styles.highlightTitle}>아쉬운 점</Text>
-                      <View style={styles.highlightChips}>
-                        {reviewData.highlights
-                          .filter((h) => h.sentiment === "negative")
-                          .map((highlight) => (
-                            <View
-                              key={`negative-${highlight.keyword}`}
-                              style={[styles.highlightChip, styles.negativeHighlightChip]}
-                            >
-                              <Text style={styles.negativeHighlightText}>
-                                {highlight.keyword}
-                                {highlight.count > 1 ? ` ${highlight.count}` : ""}
-                              </Text>
-                            </View>
-                          ))}
-                      </View>
-                    </View>
-                  )}
-                </View>
-              )}
-            </View>
-
-            {/* 긍정 리뷰 카드 */}
-            {(reviewExpanded
-              ? reviewData.positiveReviews
-              : reviewData.positiveReviews.slice(0, 2)
-            ).map((review) => (
-              <View key={review.id} style={styles.reviewCardWrapper}>
-                <ReviewCard
-                  review={review}
-                  maxLines={reviewExpanded ? undefined : 4}
-                  onEdit={review.isMine && !isReviewSubmitting ? handleEditMyReview : undefined}
-                  onDelete={review.isMine && !isReviewSubmitting ? handleDeleteMyReview : undefined}
-                />
-              </View>
-            ))}
-
-            {/* 부정 리뷰 카드 */}
-            {(reviewExpanded
-              ? reviewData.negativeReviews
-              : reviewData.negativeReviews.slice(0, 1)
-            ).map((review) => (
-              <View key={review.id} style={styles.reviewCardWrapper}>
-                <ReviewCard
-                  review={review}
-                  maxLines={reviewExpanded ? undefined : 4}
-                  onEdit={review.isMine && !isReviewSubmitting ? handleEditMyReview : undefined}
-                  onDelete={review.isMine && !isReviewSubmitting ? handleDeleteMyReview : undefined}
-                />
-              </View>
-            ))}
-
-            {/* 중립 리뷰 (전체 보기 시에만) */}
-            {reviewExpanded &&
-              reviewData.neutralReviews?.map((review) => (
-                <View key={review.id} style={styles.reviewCardWrapper}>
-                  <ReviewCard
-                    review={review}
-                    onEdit={review.isMine && !isReviewSubmitting ? handleEditMyReview : undefined}
-                    onDelete={review.isMine && !isReviewSubmitting ? handleDeleteMyReview : undefined}
-                  />
-                </View>
-              ))}
-
-            {/* 전체 보기 / 접기 버튼 */}
-            {reviewData.totalCount > 3 && (
-              <TouchableOpacity
-                style={styles.expandReviewBtn}
-                onPress={() => setReviewExpanded((v) => !v)}
-              >
-                <Text style={styles.expandReviewText}>
-                  {reviewExpanded
-                    ? "▲ 접기"
-                    : `▼ 전체 리뷰 보기 (${reviewData.totalCount}개)`}
-                </Text>
-              </TouchableOpacity>
-            )}
-          </>
-        ) : (
-          <View style={[styles.infoCard, styles.emptyCard]}>
-            <Text style={styles.emptyIcon}>💬</Text>
-            <Text style={styles.noDataText}>아직 수집된 리뷰가 없습니다.</Text>
-            <Text style={styles.noDataSub}>출처가 확인된 리뷰만 표시됩니다.</Text>
-          </View>
-        )}
+        <View style={styles.infoCard}>
+          <ReviewSummaryView
+            summary={reviewSummary}
+            isLoading={summaryLoading}
+            isError={summaryError}
+            onRetry={() => refetchSummary()}
+          />
+        </View>
       </View>
 
       <View style={styles.bottomPad} />

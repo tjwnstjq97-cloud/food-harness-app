@@ -2502,3 +2502,83 @@ npx expo start --ios
 - TypeScript: 0 errors
 - Validators: 18/18 PASS
 - Fail cases: 7/7 detected
+
+## Phase 21+: 외부 리뷰 자동 수집 + Claude 요약 (제품 본질 회귀)
+
+### 배경
+- 사용자 명시: "리뷰 자동 요약을 하려고 만든건데 각자 리뷰하게 만들면 어플이 의미가 없는 것 같은데 규칙이 잘못 설정되어있는것같다"
+- Phase 19(사용자 직접 작성 리뷰)와 Phase 27의 `no_oneline_summary` validator가 제품 비전(자동 요약)과 충돌
+- 결정: Phase 19 UI는 숨기고 DB/RLS는 보존(B안), `no_oneline_summary` validator 삭제, 자동 요약 파이프라인 구축
+
+### 라이브러리 설치 (사용자 승인)
+- `@mj-studio/react-native-naver-map@2.8.0` — KR 지도 SDK
+- `react-native-maps@1.20.1` — GLOBAL 지도 SDK
+- `expo-build-properties@~1.0.10` — iOS deploymentTarget 15.1, useFrameworks: static
+- `expo-location@~19.0.8` — 위치 권한
+
+### app.json → app.config.js 전환
+- API Key 하드코딩 회피 위해 동적 config로 전환 (CLAUDE.md "API Key 하드코딩 금지" 준수)
+- 지도 SDK 키 3종 process.env에서 주입:
+  - `EXPO_PUBLIC_NAVER_MAP_CLIENT_ID`
+  - `EXPO_PUBLIC_GOOGLE_MAPS_IOS_KEY`
+  - `EXPO_PUBLIC_GOOGLE_MAPS_ANDROID_KEY`
+- plugins: expo-router, expo-build-properties, @mj-studio/react-native-naver-map, expo-location
+- 사용자 권한 문구(NSLocationWhenInUseUsageDescription) 한국어로 명시
+
+### Edge Function 신규 2종
+1. **fetch-reviews** (`supabase/functions/fetch-reviews/index.ts`)
+   - KR: 네이버 블로그 검색 API ("{음식점명} 후기")
+   - GLOBAL: Google Places API (New) Place Details `reviews` 필드
+   - 출력: `ExternalReview[]` (text + source + sourceUrl + authorName + publishedAt)
+   - 환경변수: NAVER_SEARCH_CLIENT_ID/SECRET, GOOGLE_MAPS_API_KEY (기존 secrets 재사용)
+
+2. **summarize-reviews** (`supabase/functions/summarize-reviews/index.ts`)
+   - Anthropic Claude API 호출 (model: claude-haiku-4-5)
+   - 시스템 프롬프트로 JSON-only 응답 강제 ({positivePoints[], negativePoints[]})
+   - 응답 파서: ```json fence/raw {…} 모두 처리
+   - 출처 자동 집계 (`aggregateSources`): source별 count + 첫 5개 url
+   - 환경변수 필수: `ANTHROPIC_API_KEY` (사용자가 Supabase secrets에 등록 필요)
+   - 입력 0건 → Anthropic 호출 스킵 (빈 요약 반환, 비용 절약)
+
+### 신규 validator
+- `summary_source_required` (`harness/validators/review/summary_source_required.py`)
+  - `review_summary_v2.sources` 비어있는데 `totalReviewCount > 0` → 실패
+  - sources 항목별 type/count 누락 → 실패
+  - 키 자체 없으면 통과 (요약 미생성 상태)
+- VALIDATORS 18개 전체 PASS, fail-cases 7개 (자동 요약 sources 비어있음 추가)
+
+### 신규 hook + 컴포넌트
+- `useReviewSummary` (`src/hooks/useReviewSummary.ts`)
+  - fetch-reviews → summarize-reviews 2단계 호출
+  - GLOBAL일 때 restaurantId를 placeId로 전달
+  - 30분 캐시 (Anthropic 비용 절약)
+  - 실패 시 EMPTY_SUMMARY 반환 (앱 크래시 방지)
+- `ReviewSummaryView` (`src/components/ReviewSummaryView.tsx`)
+  - 좌(👍 좋다는 점) / 우(👎 아쉬운 점) 2-column 레이아웃
+  - 출처 칩 (네이버 블로그 N건 / 구글 리뷰 M건) — 첫 url로 Linking
+  - sources 비어있으면 "정보 없음" 처리 (하네스 규칙 준수)
+
+### 상세 페이지 리뷰 섹션 교체
+- 기존: 사용자 작성 리뷰 카드 + 키워드 칩 + 통계 (~150줄)
+- 신규: `<ReviewSummaryView />` 한 줄 호출 (16줄)
+- metric row의 👍/👎 카운트는 자동 요약 우선, 없으면 DB fallback
+- ReviewCard import 제거 (RealMapView/Skeleton 등 다른 컴포넌트와 분리)
+
+### 실제 지도 SDK
+- `RealMapView` (`src/components/RealMapView.tsx`) 신규
+  - region 분기: KR=NaverMapView, GLOBAL=MapView (PROVIDER_GOOGLE)
+  - 동적 require + try/catch로 Expo Go에서도 안전 (네이티브 모듈 미존재 시 fallback 그리드 노출)
+  - 좌표 0건일 때도 fallback (마커 의미 없음)
+- 지도 탭(`app/(tabs)/map.tsx`)에서 fake grid를 RealMapView의 fallback으로 이동
+
+### 사용자 액션 필요 사항
+1. Supabase Dashboard → Edge Functions → Secrets에 `ANTHROPIC_API_KEY` 추가
+2. `.env`에 지도 SDK 키 3종 입력
+3. `npx expo prebuild --clean` 실행 (앱 ID/Bundle ID 변경에 따른 네이티브 재생성)
+4. `npm run deploy:fn:reviews` 로 신규 Edge Function 배포
+5. `npm run ios` 또는 `npm run android` 로 dev build 실행
+
+### 검증 결과
+- TypeScript: 0 errors
+- Validators: 18/18 PASS (summary_source_required 추가)
+- Fail cases: 7/7 detected (자동 요약 sources 비어있음 추가)

@@ -24,6 +24,7 @@ import { useSearchHistoryStore } from "../../src/stores/searchHistoryStore";
 import type { Restaurant } from "../../src/types/restaurant";
 import { localizeCategory } from "../../src/utils/categoryMap";
 import { cozyTheme } from "../../src/utils/theme";
+import { RealMapView } from "../../src/components/RealMapView";
 
 const colors = cozyTheme.colors;
 
@@ -255,40 +256,51 @@ export default function MapScreen() {
           </View>
 
           <View style={styles.mapCard}>
-            <View style={styles.mapGrid}>
-              {Array.from({ length: 5 }).map((_, index) => (
-                <View
-                  key={`h-${index}`}
-                  style={[styles.mapLineHorizontal, { top: `${18 + index * 16}%` }]}
-                />
-              ))}
-              {Array.from({ length: 4 }).map((_, index) => (
-                <View
-                  key={`v-${index}`}
-                  style={[styles.mapLineVertical, { left: `${18 + index * 20}%` }]}
-                />
-              ))}
-              {markerPositions.map(({ restaurant, left, top }) => {
-                const active = restaurant.id === selectedRestaurant?.id;
-                return (
-                  <TouchableOpacity
-                    key={restaurant.id}
-                    style={[
-                      styles.marker,
-                      active && styles.markerActive,
-                      {
-                        left,
-                        top,
-                        backgroundColor: isKR ? colors.kr : colors.global,
-                      },
-                    ]}
-                    onPress={() => handleMarkerPress(restaurant)}
-                  >
-                    <Text style={styles.markerText}>{active ? "●" : "•"}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+            {/* 실제 지도 SDK (KR=Naver / GLOBAL=Google).
+                네이티브 모듈 미존재(=Expo Go) 시 grid fallback 자동 노출. */}
+            <RealMapView
+              region={region}
+              restaurants={restaurants}
+              selectedId={selectedRestaurant?.id ?? null}
+              onMarkerPress={handleMarkerPress}
+              height={MAP_HEIGHT}
+              fallback={
+                <View style={styles.mapGrid}>
+                  {Array.from({ length: 5 }).map((_, index) => (
+                    <View
+                      key={`h-${index}`}
+                      style={[styles.mapLineHorizontal, { top: `${18 + index * 16}%` }]}
+                    />
+                  ))}
+                  {Array.from({ length: 4 }).map((_, index) => (
+                    <View
+                      key={`v-${index}`}
+                      style={[styles.mapLineVertical, { left: `${18 + index * 20}%` }]}
+                    />
+                  ))}
+                  {markerPositions.map(({ restaurant, left, top }) => {
+                    const active = restaurant.id === selectedRestaurant?.id;
+                    return (
+                      <TouchableOpacity
+                        key={restaurant.id}
+                        style={[
+                          styles.marker,
+                          active && styles.markerActive,
+                          {
+                            left,
+                            top,
+                            backgroundColor: isKR ? colors.kr : colors.global,
+                          },
+                        ]}
+                        onPress={() => handleMarkerPress(restaurant)}
+                      >
+                        <Text style={styles.markerText}>{active ? "●" : "•"}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              }
+            />
 
             {selectedRestaurant && (
               <View style={styles.mapPreviewCard}>
