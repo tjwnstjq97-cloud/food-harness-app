@@ -61,7 +61,10 @@ module.exports = () => {
       },
       web: {
         bundler: "metro",
-        output: "static",
+        // "single" (SPA): 클라이언트 전용 — AsyncStorage/window 접근이 정적 렌더 시점에
+        // 발생하지 않도록 SSR 비활성. Supabase auth 초기화가 server에서 실행되어
+        // window 미정의로 크래시하던 문제 해결.
+        output: "single",
         favicon: "./assets/images/favicon.png",
       },
       plugins: [

@@ -17,5 +17,15 @@ module.exports = function (api) {
   return {
     presets: ["babel-preset-expo"],
     plugins: ["react-native-worklets/plugin"],
+    // node_modules는 기본적으로 babel transform이 안 적용됨.
+    // zustand v5의 devtools/persist 등 ESM 미들웨어가 import.meta.env를 사용하는데,
+    // Expo Web은 bundle을 type="module" 없이 로드하므로 SyntaxError로 앱 전체 크래시.
+    // overrides로 zustand 트리만 강제 transform.
+    overrides: [
+      {
+        test: /node_modules\/zustand\//,
+        plugins: [["babel-plugin-transform-import-meta", { module: "ES6" }]],
+      },
+    ],
   };
 };
