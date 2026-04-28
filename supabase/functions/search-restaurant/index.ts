@@ -78,8 +78,56 @@ Deno.serve(async (req: Request) => {
   }
 });
 
+/**
+ * 음식점/카페/주점 카테고리 화이트리스트 — 네이버 지역검색 카테고리는 ">"로 구분된
+ * 트리 형태("음식점>한식", "카페,디저트>카페" 등). 최상위 토큰이 아래 중 하나여야 통과.
+ *
+ * 하네스 규칙: 검색 결과에 비음식점(쇼핑/병원/학원 등) 섞이면 안 됨.
+ */
+const NAVER_FOOD_CATEGORY_PREFIXES = [
+  "음식점",
+  "카페",
+  "카페,디저트",
+  "주점",
+  "술집",
+  "베이커리",
+  "패스트푸드",
+  "한식",
+  "일식",
+  "중식",
+  "양식",
+  "분식",
+  "이탈리안",
+  "프랑스",
+  "디저트",
+  "퓨전요리",
+  "아시아음식",
+  "뷔페",
+];
+
+function isFoodCategory(category: string): boolean {
+  if (!category) return false;
+  const top = category.split(">")[0]?.trim() ?? "";
+  return NAVER_FOOD_CATEGORY_PREFIXES.some((p) => top.startsWith(p));
+}
+
+/**
+ * 검색어가 지역명/일반어로만 보이면 " 맛집" 부스트 — 네이버는 display 최대 5라
+ * 사후 필터로만 거르면 결과가 0개로 떨어지기 쉬움. 음식 키워드가 이미 있으면 그대로.
+ */
+function boostFoodQuery(raw: string): string {
+  const q = raw.trim();
+  const FOOD_HINTS = [
+    "맛집", "식당", "음식점", "카페", "한식", "일식", "중식", "양식",
+    "분식", "베이커리", "디저트", "주점", "술집", "고기", "초밥",
+    "파스타", "피자", "버거", "라멘", "쌀국수",
+  ];
+  const hasHint = FOOD_HINTS.some((h) => q.includes(h));
+  return hasHint ? q : `${q} 맛집`;
+}
+
 /** 네이버 지역 검색 API — KR 전용
- *  display 최대 5 (네이버 API 제한)
+ *  display 최대 5 (네이버 API 제한). 음식점 화이트리스트로 필터.
  */
 async function searchNaver(
   query: string,
@@ -93,11 +141,19 @@ async function searchNaver(
     throw new Error("네이버 API 키가 설정되지 않았습니다.");
   }
 
-  // 네이버 local API: display 최대 5
   const safeDisplay = Math.min(display, 5);
-  const url = `https://openapi.naver.com/v1/search/local.json?query=${encodeURIComponent(query)}&display=${safeDisplay}&sort=comment`;
+  const boostedQuery = boostFoodQuery(query);
 
-  console.info(`[searchNaver] 호출 URL: ${url.replace(query, "[query]")}`);
+  const url =
+    `https://openapi.naver.com/v1/search/local.json` +
+    `?query=${encodeURIComponent(boostedQuery)}` +
+    `&display=${safeDisplay}` +
+    `&sort=comment`;
+
+  console.info(
+    `[searchNaver] 호출 (boost 적용 ${boostedQuery !== query})` +
+      ` display=${safeDisplay} sort=comment`
+  );
 
   const res = await fetch(url, {
     headers: {
@@ -115,10 +171,11 @@ async function searchNaver(
   }
 
   const data = await res.json();
-  console.info(`[searchNaver] 응답 items 수: ${data.items?.length ?? 0}`);
+  const rawCount = data.items?.length ?? 0;
+  console.info(`[searchNaver] 응답 items 수: ${rawCount}`);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return (data.items ?? []).map((item: any) => ({
+  const mapped: RestaurantResult[] = (data.items ?? []).map((item: any) => ({
     id: `naver_${item.mapx}_${item.mapy}`,
     name: item.title.replace(/<[^>]*>/g, ""),
     region: "KR" as const,
@@ -129,6 +186,14 @@ async function searchNaver(
     longitude: Number(item.mapx) / 1e7,
     source: "naver",
   }));
+
+  // 음식점/카페/주점만 통과
+  const filtered = mapped.filter((r) => isFoodCategory(r.category));
+  console.info(
+    `[searchNaver] 필터링 후 ${filtered.length}/${rawCount}개 (음식점 카테고리만)`
+  );
+
+  return filtered;
 }
 
 /** 구글 Places API (New) Text Search — GLOBAL 전용
