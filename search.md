@@ -141,3 +141,70 @@ Supabase project: hvucxypkwezwquejhlzg
 - 하네스 규칙 (sources 필수) 준수 ✅
 - Web/iOS/Android 셋 중 Web 으로 검증 (Playwright 자동화 가능한 유일한 타겟)
 - iOS/Android는 사용자가 prebuild 후 동일한 Edge Function 호출 → UI 컴포넌트는 TypeScript 타입 체크 통과
+
+---
+
+## 2026-04-29 (오후) — 리뷰 갯수 부족 + UI 순서 개선
+
+### 사용자 피드백
+- "리뷰요약을 총합본 밑으로 옮겨주고"
+- "리뷰 갯수가 부족한거같은데 어디서 구해온거지 좀더 리뷰가 많을텐데"
+
+### 진단
+- 기존: fetch-reviews는 `naver/v1/search/blog.json` 한 곳만 호출, `useReviewSummary` 기본 limit=10
+- 결과: 어니언 성수 8건만 수집 → Claude가 표면적 요약 (긍정 5/부정 1)
+
+### 수정
+1. **상세 페이지 섹션 순서 변경** (`app/restaurant/[id].tsx`)
+   - 이전: 한눈에보기 → 메뉴 → 예약 → 웨이팅 → 외부링크 → **리뷰요약** (마지막)
+   - 신규: 한눈에보기 → **리뷰요약** → 메뉴 → 예약 → 웨이팅 → 외부링크
+
+2. **fetch-reviews에 네이버 카페 검색 추가** (`supabase/functions/fetch-reviews/index.ts`)
+   - 신규 함수 `fetchNaverCafe()` — `/v1/search/cafearticle.json` 호출
+   - 같은 NAVER_SEARCH_CLIENT_ID/SECRET 재사용 (별도 키 등록 불필요)
+   - 블로그 60% / 카페 40% 비율로 limit 분할
+   - `Promise.allSettled`로 병렬 호출 + 한쪽 실패해도 다른쪽 결과 사용
+   - sourceUrl 기준 dedupe (동일 글 중복 방지)
+
+3. **useReviewSummary 기본 limit 10 → 25** (`src/hooks/useReviewSummary.ts`)
+
+4. **UI 라벨 추가** (`src/types/review.ts`)
+   - `naver_cafe` → "네이버 카페" 칩
+
+### 검증 (재배포 후 어니언 성수 동일 음식점)
+
+```
+POST /functions/v1/fetch-reviews
+{ "restaurantName": "어니언 성수", "region": "KR", "limit": 25 }
+→ 200, 25건 (naver_blog 15 + naver_cafe 10)
+sample cafe URL: http://cafe.naver.com/ps2power/633792
+sample blog URL: https://blog.naver.com/plesure1014/224058903261
+```
+
+```
+POST /functions/v1/summarize-reviews (위 25건)
+→ 200
+positivePoints: [
+  "다양한 베이커리 종류",
+  "맛있는 빵과 디저트",
+  "성수역 접근성 좋음",
+  "공장감성 독특한 인테리어",  ← 카페 후기에서 새로 추출
+  "아침 일찍 오픈"               ← 카페 후기에서 새로 추출
+]
+negativePoints: [
+  "주차가 어려움",
+  "주말 대기시간 길음",          ← 카페 후기에서 새로 추출
+  "입구 진입이 어려움"           ← 카페 후기에서 새로 추출
+]
+totalReviewCount: 25
+sources: [{ naver_blog: 15 }, { naver_cafe: 10 }]
+```
+
+✅ 부정 포인트 1건 → 3건으로 증가, 더 구체적인 정보(주말 대기, 입구 진입) 발견
+✅ Claude 응답 품질 안정적, 한국어 한 줄, 사실 기반
+✅ TypeScript 0 errors / 18 validators PASS / 7 fail-cases detect
+
+### 추가 확장 가능 옵션 (필요 시)
+- limit 25 → 50까지 안전 (Naver display max 30 per endpoint, 두 곳 합산 60)
+- `/v1/search/kin.json` (지식인) — 후기 품질 낮아서 제외 (추천 X)
+- 카카오맵 / 망고플레이트 API — 별도 키 + 약관 검토 필요

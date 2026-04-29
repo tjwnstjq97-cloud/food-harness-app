@@ -28,7 +28,7 @@ interface UseReviewSummaryArgs {
   restaurantId: string;
   restaurantName: string;
   region: Region;
-  /** 입력 리뷰 최대 개수 (기본 10) */
+  /** 입력 리뷰 최대 개수 (기본 25 — 블로그 60% + 카페 40%로 분할) */
   limit?: number;
   enabled?: boolean;
 }
@@ -37,7 +37,7 @@ export function useReviewSummary({
   restaurantId,
   restaurantName,
   region,
-  limit = 10,
+  limit = 25,
   enabled = true,
 }: UseReviewSummaryArgs) {
   return useQuery({

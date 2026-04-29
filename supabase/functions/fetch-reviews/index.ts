@@ -56,7 +56,34 @@ Deno.serve(async (req: Request) => {
     let reviews: ExternalReview[] = [];
 
     if (region === "KR") {
-      reviews = await fetchNaverBlog(restaurantName, limit);
+      // 블로그 + 카페를 병렬 호출. 카페에는 정보공유성 후기, 블로그에는 사진 위주 방문기.
+      // 두 출처를 sourceUrl 기준으로 dedupe 후 합쳐서 더 풍부한 요약 입력으로 사용.
+      // 각 절반씩 가져와서 limit를 채움 (블로그 쪽에 약간 가중).
+      const blogQuota = Math.ceil(limit * 0.6);
+      const cafeQuota = Math.max(1, limit - blogQuota);
+      const [blogRes, cafeRes] = await Promise.allSettled([
+        fetchNaverBlog(restaurantName, blogQuota),
+        fetchNaverCafe(restaurantName, cafeQuota),
+      ]);
+      const blog = blogRes.status === "fulfilled" ? blogRes.value : [];
+      const cafe = cafeRes.status === "fulfilled" ? cafeRes.value : [];
+      if (blogRes.status === "rejected") {
+        console.info("[fetch-reviews] 블로그 실패:", String(blogRes.reason));
+      }
+      if (cafeRes.status === "rejected") {
+        console.info("[fetch-reviews] 카페 실패:", String(cafeRes.reason));
+      }
+      // dedupe by sourceUrl (카페↔블로그 동일 글이 가끔 있음)
+      const seen = new Set<string>();
+      reviews = [...blog, ...cafe].filter((r) => {
+        const key = r.sourceUrl ?? `${r.source}:${r.text.slice(0, 40)}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+      console.info(
+        `[fetch-reviews] KR 합산 — blog=${blog.length}, cafe=${cafe.length}, dedup=${reviews.length}`
+      );
     } else {
       // placeId 없으면 Google Place Details 불가 — 빈 배열 반환 (요약 단계에서 처리)
       if (placeId) {
@@ -145,6 +172,60 @@ async function fetchNaverBlog(
     sourceUrl: item.link,
     authorName: item.bloggername,
     publishedAt: item.postdate ? naverPostdateToIso(item.postdate) : undefined,
+  })) as ExternalReview[];
+}
+
+/**
+ * 네이버 카페 검색 API — 카페 게시글에는 동네 후기/오픈런 후기 등이 풍부.
+ * 블로그와 동일한 NAVER_SEARCH_CLIENT_ID/SECRET 재사용 (별도 키 불필요).
+ * Endpoint: /v1/search/cafearticle.json
+ */
+async function fetchNaverCafe(
+  restaurantName: string,
+  limit: number
+): Promise<ExternalReview[]> {
+  const clientId = Deno.env.get("NAVER_SEARCH_CLIENT_ID") ?? "";
+  const clientSecret = Deno.env.get("NAVER_SEARCH_CLIENT_SECRET") ?? "";
+
+  if (!clientId || !clientSecret) {
+    console.info("[fetchNaverCafe] API 키 없음");
+    throw new Error("네이버 API 키가 설정되지 않았습니다.");
+  }
+
+  const safeLimit = Math.min(Math.max(limit, 1), 30);
+  const query = `${restaurantName} 후기`;
+  const url =
+    `https://openapi.naver.com/v1/search/cafearticle.json` +
+    `?query=${encodeURIComponent(query)}` +
+    `&display=${safeLimit}` +
+    `&sort=sim`;
+
+  console.info(`[fetchNaverCafe] 호출 query="${query}" display=${safeLimit}`);
+
+  const res = await fetch(url, {
+    headers: {
+      "X-Naver-Client-Id": clientId,
+      "X-Naver-Client-Secret": clientSecret,
+    },
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    console.info(`[fetchNaverCafe] HTTP ${res.status}: ${body}`);
+    throw new Error(`네이버 카페 API 오류: ${res.status}`);
+  }
+
+  const data = await res.json();
+  const items = data.items ?? [];
+  console.info(`[fetchNaverCafe] 응답 ${items.length}건`);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return items.slice(0, safeLimit).map((item: any) => ({
+    text: stripHtml(`${item.title ?? ""} ${item.description ?? ""}`).trim(),
+    source: "naver_cafe",
+    sourceUrl: item.link,
+    authorName: item.cafename,
+    // cafe API는 postdate 없음
   })) as ExternalReview[];
 }
 

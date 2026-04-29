@@ -381,6 +381,22 @@ export default function RestaurantDetailScreen() {
         </View>
       </View>
 
+      {/* ── 리뷰 요약 (외부 출처 자동 수집 + Claude 요약 — Phase 21+)
+            한눈에 보기(총합본) 바로 아래에 배치해서 사용자가 핵심 정보 흐름으로 자연스럽게 이어볼 수 있게 함. ── */}
+      <View style={styles.section}>
+        <View style={styles.reviewHeaderRow}>
+          <Text style={styles.sectionTitle}>리뷰 요약</Text>
+        </View>
+        <View style={styles.infoCard}>
+          <ReviewSummaryView
+            summary={reviewSummary}
+            isLoading={summaryLoading}
+            isError={summaryError}
+            onRetry={() => refetchSummary()}
+          />
+        </View>
+      </View>
+
       {/* ── 대표 메뉴 ── */}
       <MenuSection
         items={signatureMenus}
@@ -552,20 +568,6 @@ export default function RestaurantDetailScreen() {
         </Text>
       </View>
 
-      {/* ── 리뷰 요약 (외부 출처 자동 수집 + Claude 요약 — Phase 21+) ── */}
-      <View style={styles.section}>
-        <View style={styles.reviewHeaderRow}>
-          <Text style={styles.sectionTitle}>리뷰 요약</Text>
-        </View>
-        <View style={styles.infoCard}>
-          <ReviewSummaryView
-            summary={reviewSummary}
-            isLoading={summaryLoading}
-            isError={summaryError}
-            onRetry={() => refetchSummary()}
-          />
-        </View>
-      </View>
 
       <View style={styles.bottomPad} />
     </ScrollView>

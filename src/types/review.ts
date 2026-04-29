@@ -75,5 +75,6 @@ export interface ReviewSummaryV2 {
 /** 출처 type 한글 라벨 */
 export const SUMMARY_SOURCE_LABELS: Record<string, string> = {
   naver_blog: "네이버 블로그",
+  naver_cafe: "네이버 카페",
   google_review: "구글 리뷰",
 };
