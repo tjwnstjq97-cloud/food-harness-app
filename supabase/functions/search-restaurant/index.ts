@@ -127,7 +127,13 @@ function boostFoodQuery(raw: string): string {
 }
 
 /** 네이버 지역 검색 API — KR 전용
- *  display 최대 5 (네이버 API 제한). 음식점 화이트리스트로 필터.
+ *  display 최대 5, start 1만 지원 (Naver Local API 하드 제한).
+ *
+ *  더 많은 결과를 얻기 위한 전략:
+ *    - 두 가지 정렬을 병렬 호출 (sort=sim 관련도 + sort=comment 인기) → 서로 다른 결과 셋
+ *    - 부스트가 필요한 쿼리(음식 키워드 없음)는 부스트 쿼리도 병렬 추가 → 최대 3개 호출
+ *    - 좌표(id) 기준 dedupe 후 음식점 카테고리 필터
+ *  → 정확한 가게명("어니언 성수") 검색은 그대로 매칭, 일반 키워드("성수동 카페")는 결과 풍부
  */
 async function searchNaver(
   query: string,
@@ -141,19 +147,55 @@ async function searchNaver(
     throw new Error("네이버 API 키가 설정되지 않았습니다.");
   }
 
-  const safeDisplay = Math.min(display, 5);
-  const boostedQuery = boostFoodQuery(query);
+  const targetCount = Math.min(display, 15);
+  const boosted = boostFoodQuery(query);
+  const needBoost = boosted !== query;
 
+  // 병렬 호출: 동일 쿼리 sim/comment 정렬 + (필요 시) 부스트 쿼리 sim 정렬
+  const calls = [
+    fetchOnePage(query, "sim", clientId, clientSecret),
+    fetchOnePage(query, "comment", clientId, clientSecret),
+  ];
+  if (needBoost) {
+    calls.push(fetchOnePage(boosted, "sim", clientId, clientSecret));
+  }
+  const results = await Promise.allSettled(calls);
+
+  const flat: RestaurantResult[] = [];
+  const seen = new Set<string>();
+  for (const r of results) {
+    if (r.status === "fulfilled") {
+      for (const item of r.value) {
+        if (!seen.has(item.id)) {
+          flat.push(item);
+          seen.add(item.id);
+        }
+      }
+    } else {
+      console.info("[searchNaver] 호출 실패:", String(r.reason));
+    }
+  }
+
+  const filtered = flat.filter((r) => isFoodCategory(r.category));
+  console.info(
+    `[searchNaver] 호출 ${calls.length}회 → raw ${flat.length} dedup → 음식점 ${filtered.length}건`
+  );
+  return filtered.slice(0, targetCount);
+}
+
+/** Naver Local 단일 호출 (display=5, start=1 고정 — API 제약). */
+async function fetchOnePage(
+  query: string,
+  sort: "sim" | "comment",
+  clientId: string,
+  clientSecret: string
+): Promise<RestaurantResult[]> {
   const url =
     `https://openapi.naver.com/v1/search/local.json` +
-    `?query=${encodeURIComponent(boostedQuery)}` +
-    `&display=${safeDisplay}` +
-    `&sort=comment`;
-
-  console.info(
-    `[searchNaver] 호출 (boost 적용 ${boostedQuery !== query})` +
-      ` display=${safeDisplay} sort=comment`
-  );
+    `?query=${encodeURIComponent(query)}` +
+    `&display=5` +
+    `&start=1` +
+    `&sort=${sort}`;
 
   const res = await fetch(url, {
     headers: {
@@ -162,20 +204,18 @@ async function searchNaver(
     },
   });
 
-  console.info(`[searchNaver] HTTP 상태: ${res.status}`);
-
   if (!res.ok) {
+    if (res.status === 400) return [];
     const body = await res.text();
-    console.info(`[searchNaver] 오류 응답: ${body}`);
+    console.info(`[fetchOnePage] HTTP ${res.status}: ${body}`);
     throw new Error(`네이버 API 오류: ${res.status}`);
   }
 
   const data = await res.json();
-  const rawCount = data.items?.length ?? 0;
-  console.info(`[searchNaver] 응답 items 수: ${rawCount}`);
+  const items = data.items ?? [];
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const mapped: RestaurantResult[] = (data.items ?? []).map((item: any) => ({
+  return items.map((item: any) => ({
     id: `naver_${item.mapx}_${item.mapy}`,
     name: item.title.replace(/<[^>]*>/g, ""),
     region: "KR" as const,
@@ -186,14 +226,6 @@ async function searchNaver(
     longitude: Number(item.mapx) / 1e7,
     source: "naver",
   }));
-
-  // 음식점/카페/주점만 통과
-  const filtered = mapped.filter((r) => isFoodCategory(r.category));
-  console.info(
-    `[searchNaver] 필터링 후 ${filtered.length}/${rawCount}개 (음식점 카테고리만)`
-  );
-
-  return filtered;
 }
 
 /** 구글 Places API (New) Text Search — GLOBAL 전용

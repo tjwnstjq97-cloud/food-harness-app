@@ -95,7 +95,7 @@ export default function MapScreen() {
   const [query, setQuery] = useState("");
   const [submitted, setSubmitted] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const debouncedQuery = useDebounce(query, 300);
+  const debouncedQuery = useDebounce(query, 250);
   const setSelected = useSelectedRestaurantStore((s) => s.setSelected);
   const { queries: recentQueries, addQuery } = useSearchHistoryStore();
 

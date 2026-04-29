@@ -71,7 +71,8 @@ export default function HomeScreen() {
   const router = useRouter();
   const prevSubmitted = useRef("");
 
-  const debouncedQuery = useDebounce(query, 300);
+  // 250ms — 한국어 IME 입력 끝맺음 직후 자연스럽게 트리거되는 임계값.
+  const debouncedQuery = useDebounce(query, 250);
 
   const setSelected = useSelectedRestaurantStore((s) => s.setSelected);
   const { queries: recentQueries, timestamps, addQuery, removeQuery } = useSearchHistoryStore();

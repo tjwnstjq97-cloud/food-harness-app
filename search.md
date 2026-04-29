@@ -208,3 +208,55 @@ sources: [{ naver_blog: 15 }, { naver_cafe: 10 }]
 - limit 25 → 50까지 안전 (Naver display max 30 per endpoint, 두 곳 합산 60)
 - `/v1/search/kin.json` (지식인) — 후기 품질 낮아서 제외 (추천 X)
 - 카카오맵 / 망고플레이트 API — 별도 키 + 약관 검토 필요
+
+---
+
+## 2026-04-29 (저녁) — 검색 정확도 + 체감 렉 개선
+
+### 사용자 피드백
+- "검색이 정확히 안된다"
+- "검색할때 조금씩 렉걸리는 현상"
+
+### 진단
+**정확도:**
+- Naver Local API `display` 하드 제한 = 5건. 카테고리 필터 후 1~3건만 남음
+- `sort=comment` 인기순 → 정확한 가게명/장르 매칭이 밀림
+- 항상 "맛집" 부스트 → 정확한 검색어가 흐려짐 (예: "어니언 성수" → "어니언 성수 맛집")
+
+**체감 렉:**
+- 새 검색 입력 시 기존 결과 즉시 사라짐 → 빈 화면 → 스켈레톤 → 새 결과 (깜빡임)
+- TanStack Query `placeholderData` 미사용
+- start>1 pagination은 Naver Local API에서 미지원 (시도했으나 무효)
+
+### 수정
+1. **search-restaurant 병렬 다중 정렬** (`supabase/functions/search-restaurant/index.ts`)
+   - `Promise.allSettled` 로 동일 쿼리 sim/comment 정렬 + (필요 시) 부스트 쿼리 sim 정렬 → 최대 3개 병렬
+   - 좌표 id (`naver_{mapx}_{mapy}`) 기준 dedupe
+   - 정확 가게명은 그대로, 일반 키워드는 결과 풍부
+
+2. **useSearch placeholderData** (`src/hooks/useSearch.ts`)
+   - `keepPreviousData` import + 추가 → 새 검색 중에도 이전 결과 유지
+   - isFetching으로 작은 인디케이터만 표시 (스켈레톤 X)
+
+3. **디바운스 300ms → 250ms** (`app/(tabs)/index.tsx`, `app/(tabs)/map.tsx`)
+   - 한국어 IME 입력 끝맺음과 잘 맞는 임계값
+
+### 검증 (재배포 후 7개 쿼리)
+
+| 검색어 | Before | After | ms |
+|---|---|---|---|
+| 어니언 성수 | 1 | 1 (정확) | 476 |
+| 성수동 카페 | 4 | **9** | 719 |
+| 강남 카페 | 3 | **8** | 438 |
+| 강남역 일식 | 5 | **9** | 487 |
+| 블루보틀 | 5 | **8** | 496 |
+| 명동 칼국수 | — | 7 | 389 |
+| 신논현 라멘 | — | 8 | 394 |
+
+✅ 결과 수 평균 2배 이상 증가, 정확도 유지
+✅ 응답시간 389~719ms (대부분 500ms 이하 — 병렬 호출이라 직렬 대비 거의 손실 없음)
+✅ TS 0 errors / 18 validators PASS / 7 fail-cases detect
+
+### 미해결 한계
+- Naver Local API 자체가 최대 5건/호출, start 파라미터 미지원 → 단일 쿼리로 100건 이상은 불가
+- 더 많이 필요하면: 쿼리 변형(예: "성수 카페" + "성수동 카페" + "성수 코감기 맛집") 다중 호출 — 비용/속도 트레이드오프

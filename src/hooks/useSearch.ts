@@ -8,7 +8,7 @@
  * - region 없이 검색 금지
  * - Edge Function 실패 시 restaurants 캐시 테이블로 fallback
  */
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import { useRegion } from "../providers/RegionProvider";
 import { isValidRegion } from "../types/region";
@@ -146,5 +146,8 @@ export function useSearch({ query, enabled = true, limit = 30 }: UseSearchOption
     enabled: enabled && !!query.trim(),
     staleTime: 1000 * 60 * 2, // 2분 캐시
     retry: 1,
+    // 새 검색 중에도 이전 결과를 그대로 보여줌 → 빈 화면 깜빡임 제거 (체감 렉 해소).
+    // isFetching으로 상단에 작은 인디케이터만 보여주는 패턴.
+    placeholderData: keepPreviousData,
   });
 }
