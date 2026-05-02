@@ -63,10 +63,17 @@ export interface SummarySource {
   urls: string[];
 }
 
+/** 자동 추출 시그니처 메뉴 */
+export interface SummaryMenu {
+  name: string;
+  mentionCount: number;
+}
+
 /** AI 자동 요약 결과 */
 export interface ReviewSummaryV2 {
   positivePoints: string[];
   negativePoints: string[];
+  signatureMenus: SummaryMenu[]; // 리뷰에서 자동 추출된 메뉴
   totalReviewCount: number;
   sources: SummarySource[];
   generatedAt: string;

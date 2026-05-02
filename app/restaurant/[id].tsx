@@ -15,7 +15,7 @@
  *
  * 하네스 규칙: region 없는 지도 기능 호출 금지.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -96,7 +96,21 @@ export default function RestaurantDetailScreen() {
   });
   const { data: reservationData, isLoading: reservationLoading } = useReservation(id ?? "");
   const { data: waitingData, isLoading: waitingLoading } = useWaiting(id ?? "");
-  const { signatures: signatureMenus, isLoading: menuLoading } = useSignatureMenus(id ?? "");
+  const { signatures: dbSignatureMenus, isLoading: menuLoading } = useSignatureMenus(id ?? "");
+  // DB 메뉴가 비어있으면 리뷰 요약에서 자동 추출된 메뉴 사용 (Claude가 리뷰에서 언급된 메뉴 추출).
+  // DB 메뉴가 있으면 우선 사용 (사용자/관리자 입력이 가장 신뢰도 높음).
+  const signatureMenus = useMemo(() => {
+    if (dbSignatureMenus && dbSignatureMenus.length > 0) return dbSignatureMenus;
+    const auto = reviewSummary?.signatureMenus ?? [];
+    return auto.slice(0, 3).map((m) => ({
+      name: m.name,
+      price: 0,
+      priceStatus: "unknown" as const,
+      isSignature: true,
+      source: "review_extracted",
+      mentionCount: m.mentionCount,
+    }));
+  }, [dbSignatureMenus, reviewSummary]);
 
   // ── 진입 시 History 자동 기록 (TASK 5)
   useEffect(() => {

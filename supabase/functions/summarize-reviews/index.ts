@@ -67,13 +67,14 @@ Deno.serve(async (req: Request) => {
     const response: SummarizeReviewsResponse = {
       positivePoints: summary.positivePoints,
       negativePoints: summary.negativePoints,
+      signatureMenus: summary.signatureMenus,
       totalReviewCount: reviews.length,
       sources,
       generatedAt: new Date().toISOString(),
     };
 
     console.info(
-      `[summarize-reviews] 완료 — 긍정 ${summary.positivePoints.length}, 부정 ${summary.negativePoints.length}, 출처 ${sources.length}종`
+      `[summarize-reviews] 완료 — 긍정 ${summary.positivePoints.length}, 부정 ${summary.negativePoints.length}, 메뉴 ${summary.signatureMenus.length}, 출처 ${sources.length}종`
     );
 
     return new Response(JSON.stringify(response), {
@@ -124,7 +125,11 @@ function aggregateSources(reviews: ExternalReview[]): SummarySource[] {
 async function callAnthropicSummary(
   restaurantName: string,
   reviews: ExternalReview[]
-): Promise<{ positivePoints: string[]; negativePoints: string[] }> {
+): Promise<{
+  positivePoints: string[];
+  negativePoints: string[];
+  signatureMenus: { name: string; mentionCount: number }[];
+}> {
   const apiKey = Deno.env.get("ANTHROPIC_API_KEY") ?? "";
   if (!apiKey) {
     console.info("[callAnthropicSummary] ANTHROPIC_API_KEY 없음");
@@ -139,17 +144,20 @@ async function callAnthropicSummary(
     })
     .join("\n\n");
 
-  const systemPrompt = `당신은 한국 음식점 리뷰 요약 전문가입니다. 주어진 리뷰들을 읽고 다음 JSON 형식으로만 응답하세요. 다른 텍스트 절대 금지.
+  const systemPrompt = `당신은 한국 음식점 리뷰 분석 전문가입니다. 주어진 리뷰들을 읽고 다음 JSON 형식으로만 응답하세요. 다른 텍스트 절대 금지.
 
 규칙:
 - 한국어로 작성
-- 각 항목은 짧고 명확한 한 줄 (15자 이내)
+- positivePoints/negativePoints 각 항목은 짧고 명확한 한 줄 (15자 이내), 최대 6개씩
 - 리뷰에 명시되지 않은 내용 추측 금지
-- 긍정 포인트가 없으면 빈 배열, 부정도 마찬가지
-- 최대 6개씩
+- signatureMenus: 리뷰에서 실제로 언급된 메뉴명만 추출 (가게명/지역명/일반 단어 제외)
+  - mentionCount: 해당 메뉴가 리뷰에서 언급된 횟수 (정수)
+  - 자주 언급된 순으로 최대 5개
+  - "맛있다", "추천" 같은 형용사/동사는 메뉴 아님
+  - 메뉴명만 (예: "베이글", "라떼", "파스타") — 설명/가격 금지
 
 응답 형식 (이것만 출력):
-{"positivePoints": ["...", "..."], "negativePoints": ["...", "..."]}`;
+{"positivePoints": ["...", "..."], "negativePoints": ["...", "..."], "signatureMenus": [{"name": "...", "mentionCount": 5}, ...]}`;
 
   const userPrompt = `음식점: ${restaurantName}
 
@@ -194,7 +202,11 @@ ${reviewBlock}
   // 모델이 ```json ... ``` 으로 감싸는 경우 대비
   const jsonText = extractJson(raw);
 
-  let parsed: { positivePoints?: unknown; negativePoints?: unknown };
+  let parsed: {
+    positivePoints?: unknown;
+    negativePoints?: unknown;
+    signatureMenus?: unknown;
+  };
   try {
     parsed = JSON.parse(jsonText);
   } catch (e) {
@@ -208,8 +220,19 @@ ${reviewBlock}
   const negativePoints = Array.isArray(parsed.negativePoints)
     ? parsed.negativePoints.filter((s): s is string => typeof s === "string").slice(0, 6)
     : [];
+  const signatureMenus = Array.isArray(parsed.signatureMenus)
+    ? parsed.signatureMenus
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .filter((m: any) => m && typeof m.name === "string" && m.name.length > 0)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .map((m: any) => ({
+          name: String(m.name).trim().slice(0, 30),
+          mentionCount: Number(m.mentionCount ?? 1) || 1,
+        }))
+        .slice(0, 5)
+    : [];
 
-  return { positivePoints, negativePoints };
+  return { positivePoints, negativePoints, signatureMenus };
 }
 
 /** 응답에서 JSON만 추출 (```json ... ``` 또는 그대로) */

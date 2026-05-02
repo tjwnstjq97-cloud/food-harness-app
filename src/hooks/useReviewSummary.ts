@@ -19,6 +19,7 @@ import type { ReviewSummaryV2 } from "../types/review";
 const EMPTY_SUMMARY: ReviewSummaryV2 = {
   positivePoints: [],
   negativePoints: [],
+  signatureMenus: [],
   totalReviewCount: 0,
   sources: [],
   generatedAt: new Date(0).toISOString(),
@@ -87,6 +88,14 @@ export function useReviewSummary({
           : [],
         negativePoints: Array.isArray(summary.negativePoints)
           ? summary.negativePoints
+          : [],
+        signatureMenus: Array.isArray(summary.signatureMenus)
+          ? summary.signatureMenus
+              .filter((m: { name?: unknown }) => m && typeof m.name === "string")
+              .map((m: { name: string; mentionCount?: number }) => ({
+                name: m.name,
+                mentionCount: Number(m.mentionCount ?? 1) || 1,
+              }))
           : [],
         totalReviewCount: Number(summary.totalReviewCount ?? 0),
         sources: Array.isArray(summary.sources) ? summary.sources : [],

@@ -90,7 +90,9 @@ export function MenuSection({
               </TouchableOpacity>
             )}
             <Text style={styles.sourceNote}>
-              * 출처 있는 메뉴만 표시됩니다.
+              {items.some((m) => m.source === "review_extracted")
+                ? "* 외부 리뷰에서 자동 추출된 메뉴 (가격은 매장 확인 필요)"
+                : "* 출처 있는 메뉴만 표시됩니다."}
             </Text>
           </>
         )}

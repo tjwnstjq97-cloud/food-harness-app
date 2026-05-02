@@ -60,10 +60,17 @@ export interface SummarySource {
   urls?: string[];           // 원문 링크 모음 (앞에서 최대 N개)
 }
 
+/** 자동 추출 시그니처 메뉴 (리뷰에서 자주 언급된 메뉴명) */
+export interface SummaryMenu {
+  name: string;
+  mentionCount: number;
+}
+
 /** AI 자동 요약 결과 — sentiment 분리 + 출처 첨부 필수 */
 export interface ReviewSummaryV2 {
   positivePoints: string[];  // 좋다는 점 (한 줄씩)
   negativePoints: string[];  // 아쉬운 점 (한 줄씩)
+  signatureMenus: SummaryMenu[]; // 자주 언급된 메뉴 (자동 추출)
   totalReviewCount: number;  // 요약에 사용한 리뷰 총 개수
   sources: SummarySource[];  // 출처별 메타 — 비어있으면 validator 실패
   generatedAt: string;       // ISO 8601

@@ -260,3 +260,58 @@ sources: [{ naver_blog: 15 }, { naver_cafe: 10 }]
 ### 미해결 한계
 - Naver Local API 자체가 최대 5건/호출, start 파라미터 미지원 → 단일 쿼리로 100건 이상은 불가
 - 더 많이 필요하면: 쿼리 변형(예: "성수 카페" + "성수동 카페" + "성수 코감기 맛집") 다중 호출 — 비용/속도 트레이드오프
+
+---
+
+## 2026-05-02 — 대표 메뉴 자동 추출 (Claude single-call)
+
+### 문제
+- 상세 페이지 "대표 메뉴" 섹션이 모든 음식점에 대해 빈 상태
+- DB(`menus` 테이블)만 보고 있고 DB는 비어있음
+- 향후 채워넣기 어려움 (Naver Place crawling 등 별도 인프라 필요)
+
+### 해결
+이미 동작하는 summarize-reviews(Claude Haiku)에 메뉴 추출 작업 추가.
+- 동일한 리뷰 입력으로 한 번의 Claude 호출에 [긍정/부정/메뉴] 셋 다 받음
+- 추가 호출 없음 (token만 약간 더 사용)
+
+### 구현
+1. **summarize-reviews 시스템 프롬프트 확장** (`supabase/functions/summarize-reviews/index.ts`)
+   ```
+   signatureMenus: 리뷰에서 실제로 언급된 메뉴명만 추출
+   - mentionCount: 정수
+   - 자주 언급된 순으로 최대 5개
+   - 형용사/동사 제외, 메뉴명만
+   ```
+
+2. **타입 확장** (`_shared/types.ts`, `src/types/review.ts`)
+   - `SummaryMenu = { name, mentionCount }`
+   - `ReviewSummaryV2.signatureMenus: SummaryMenu[]`
+
+3. **useReviewSummary hook** — 응답에서 signatureMenus 추출
+
+4. **상세 페이지 통합** (`app/restaurant/[id].tsx`)
+   - DB 메뉴(useSignatureMenus) 우선 → 없으면 reviewSummary.signatureMenus 변환해서 사용
+   - source: `"review_extracted"`, priceStatus: `"unknown"`로 매핑
+
+5. **MenuSection 라벨** — review_extracted 메뉴 있으면
+   "* 외부 리뷰에서 자동 추출된 메뉴 (가격은 매장 확인 필요)" 표시
+
+### 검증 (어니언 성수, 20건 리뷰)
+
+```
+positivePoints: ["빵 종류가 많고 맛있음", "공장감성 인테리어가 독특함", ...]
+negativePoints: ["주차가 어려움", "인테리어 취향 갈림", ...]
+signatureMenus: [
+  { name: "무화과케이크", mentionCount: 1 },
+  { name: "헤이즐넛 두쫀쿠", mentionCount: 2 },
+  { name: "아메리카노", mentionCount: 2 },
+  { name: "초코소금빵", mentionCount: 1 },
+  { name: "앙버터", mentionCount: 1 }
+]
+```
+
+✅ 모두 어니언 성수의 실제 메뉴 — Claude가 리뷰 본문에서 정확히 추출
+✅ 추가 API 호출 0건 (기존 summarize-reviews에 작업만 추가)
+✅ DB 메뉴 입력하면 그쪽이 우선 표시 (사용자/관리자 신뢰도 우선)
+✅ TS 0 errors / 18 validators PASS / 7 fail-cases detect
