@@ -19,6 +19,12 @@ import type {
   SummarySource,
   ErrorResponse,
 } from "../_shared/types.ts";
+import {
+  sha256Hex,
+  summaryCacheKey,
+  readSummaryCache,
+  writeSummaryCache,
+} from "../_shared/cache.ts";
 
 const MODEL = "claude-haiku-4-5";
 const MAX_URLS_PER_SOURCE = 5;
@@ -29,7 +35,7 @@ Deno.serve(async (req: Request) => {
 
   try {
     const body: SummarizeReviewsRequest = await req.json();
-    const { restaurantName, reviews } = body;
+    const { restaurantName, reviews, region = "KR" } = body;
 
     console.info(
       `[summarize-reviews] 요청 — name: "${restaurantName}", reviews: ${reviews?.length ?? 0}건`
@@ -62,6 +68,39 @@ Deno.serve(async (req: Request) => {
     }
 
     const sources = aggregateSources(reviews);
+
+    // ── 캐시 조회: 같은 음식점 + 같은 리뷰 URL 셋이면 Claude 호출 스킵 ──
+    // source_hash = 정렬된 sourceUrl 목록의 SHA-256.
+    // 새 블로그/카페 글이 등장하면 hash가 바뀌어 자동으로 stale 처리됨.
+    const cacheKey = summaryCacheKey(region, restaurantName);
+    const sortedUrls = reviews
+      .map((r) => r.sourceUrl ?? `${r.source}:${(r.text ?? "").slice(0, 40)}`)
+      .sort()
+      .join("|");
+    const sourceHash = await sha256Hex(sortedUrls);
+
+    const cached = (await readSummaryCache(cacheKey, sourceHash)) as
+      | SummarizeReviewsResponse
+      | null;
+    if (cached) {
+      // 캐시 hit — Claude 호출 0회. sources/totalReviewCount는 현재 fetch 결과로 갱신해서 반환
+      // (요약 본문은 캐시 그대로, 메타만 fresh).
+      const hit: SummarizeReviewsResponse = {
+        ...cached,
+        totalReviewCount: reviews.length,
+        sources,
+        generatedAt: cached.generatedAt, // 원래 생성 시각 유지 (사용자에게 정확한 정보)
+      };
+      return new Response(JSON.stringify(hit), {
+        status: 200,
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/json",
+          "X-Cache": "HIT",
+        },
+      });
+    }
+
     const summary = await callAnthropicSummary(restaurantName, reviews);
 
     const response: SummarizeReviewsResponse = {
@@ -73,8 +112,18 @@ Deno.serve(async (req: Request) => {
       generatedAt: new Date().toISOString(),
     };
 
+    // 캐시 갱신 (실패해도 응답에 영향 없음 — silent fall-through)
+    await writeSummaryCache(
+      cacheKey,
+      region,
+      restaurantName,
+      sourceHash,
+      response,
+      reviews.length
+    );
+
     console.info(
-      `[summarize-reviews] 완료 — 긍정 ${summary.positivePoints.length}, 부정 ${summary.negativePoints.length}, 메뉴 ${summary.signatureMenus.length}, 출처 ${sources.length}종`
+      `[summarize-reviews] 완료 — 긍정 ${summary.positivePoints.length}, 부정 ${summary.negativePoints.length}, 메뉴 ${summary.signatureMenus.length}, 출처 ${sources.length}종 (cache MISS)`
     );
 
     return new Response(JSON.stringify(response), {

@@ -12,6 +12,11 @@ import type {
   RestaurantResult,
   ErrorResponse,
 } from "../_shared/types.ts";
+import {
+  searchCacheKey,
+  readSearchCache,
+  writeSearchCache,
+} from "../_shared/cache.ts";
 
 Deno.serve(async (req: Request) => {
   // CORS preflight
@@ -41,6 +46,22 @@ Deno.serve(async (req: Request) => {
       });
     }
 
+    // ── 캐시 조회: TTL 24h. 같은 region+query면 Naver/Google API 호출 0회 ──
+    const cacheKey = searchCacheKey(region, query);
+    const cached = (await readSearchCache(cacheKey)) as
+      | SearchResponseBody
+      | null;
+    if (cached) {
+      return new Response(JSON.stringify(cached), {
+        status: 200,
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/json",
+          "X-Cache": "HIT",
+        },
+      });
+    }
+
     let restaurants: RestaurantResult[] = [];
     let source = "";
 
@@ -52,7 +73,7 @@ Deno.serve(async (req: Request) => {
       source = "google";
     }
 
-    console.info(`[search-restaurant] 결과 ${restaurants.length}개 — source: ${source}`);
+    console.info(`[search-restaurant] 결과 ${restaurants.length}개 — source: ${source} (cache MISS)`);
 
     const response: SearchResponseBody = {
       restaurants,
@@ -60,6 +81,9 @@ Deno.serve(async (req: Request) => {
       hasMore: restaurants.length >= limit,
       source,
     };
+
+    // 캐시 갱신 (실패해도 응답에 영향 없음)
+    await writeSearchCache(cacheKey, region, query, response, restaurants.length);
 
     return new Response(JSON.stringify(response), {
       status: 200,

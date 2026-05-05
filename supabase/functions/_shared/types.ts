@@ -94,6 +94,7 @@ export interface FetchReviewsResponse {
 export interface SummarizeReviewsRequest {
   restaurantName: string;
   reviews: ExternalReview[];
+  region?: Region; // 캐시 키 분리용 (옵션). 미지정이면 "KR" 가정.
 }
 
 /** summarize-reviews 응답 */

@@ -66,11 +66,11 @@ export function useReviewSummary({
         return { ...EMPTY_SUMMARY, generatedAt: new Date().toISOString() };
       }
 
-      // 2. summarize-reviews
+      // 2. summarize-reviews (region 전달 → 캐시 키 분리)
       const { data: summary, error: sumErr } = await supabase.functions.invoke(
         "summarize-reviews",
         {
-          body: { restaurantName, reviews },
+          body: { restaurantName, reviews, region },
         }
       );
 

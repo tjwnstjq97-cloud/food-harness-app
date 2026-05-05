@@ -315,3 +315,72 @@ signatureMenus: [
 ✅ 추가 API 호출 0건 (기존 summarize-reviews에 작업만 추가)
 ✅ DB 메뉴 입력하면 그쪽이 우선 표시 (사용자/관리자 신뢰도 우선)
 ✅ TS 0 errors / 18 validators PASS / 7 fail-cases detect
+
+---
+
+## 2026-05-02 (오후) — DB 캐시 도입 (Anthropic 토큰 절약 + 응답 속도)
+
+### 사용자 제안
+> "데이터베이스에 각자 검색한 결과를 데이터베이스에 저장을 해서 다른사람이 검색해도 데이터가 변했는지만 검사하고 같다면 다시 내준다던가 하면 토큰사용이 덜하지않을까나"
+
+### 설계
+3개 Edge Function 중 캐시 효과 큰 2개에 적용:
+
+| 함수 | 캐시 정책 | 토큰/비용 효과 |
+|---|---|---|
+| **summarize-reviews** | source_hash (정렬된 review URL SHA-256) 비교 | **Anthropic 호출 0회 → 비용 0** |
+| **search-restaurant** | TTL 24h | Naver/Google 호출 0회 → 응답 속도 ↑ |
+| fetch-reviews | 캐시 안 함 | 매번 fresh로 stale 감지 (의미 있음) |
+
+### 구현
+1. **마이그레이션 005** (`supabase/migrations/005_add_edge_function_cache.sql`)
+   - `search_cache(cache_key PK, region, query, results JSONB, expires_at, hit_count)`
+   - `review_summary_cache(cache_key PK, region, restaurant_name, source_hash, summary JSONB, hit_count)`
+   - 두 테이블 RLS 활성화 → service_role만 접근 (Edge Function 내부 전용)
+   - `cleanup_expired_search_cache()` + `increment_cache_hit(table, key)` RPC
+
+2. **`_shared/cache.ts`** — 공용 유틸
+   - `sha256Hex(input)`: SHA-256 hex (review URL 해시용)
+   - `searchCacheKey(region, query)` / `summaryCacheKey(region, name)` — 정규화 키
+   - `readSearchCache` / `writeSearchCache` (TTL 기반)
+   - `readSummaryCache(key, expectedHash)` — hash 일치할 때만 hit
+   - `writeSummaryCache(...)` — UPSERT
+   - **silent fall-through**: 테이블 미생성/SUPABASE 키 미주입 환경에서 모두 무시 (앱 정상 동작)
+
+3. **summarize-reviews 캐시 wire-in**
+   - 정렬된 sourceUrl 목록의 SHA-256 = source_hash
+   - cache hit → Claude 호출 스킵, totalReviewCount/sources만 fresh로 갱신해서 반환
+   - cache miss → Claude 호출 + 캐시 갱신
+   - response 헤더 `X-Cache: HIT` 추가
+
+4. **search-restaurant 캐시 wire-in**
+   - cache key `{region}:{query_normalized}`
+   - TTL 24h 내면 Naver/Google 호출 스킵
+   - response 헤더 `X-Cache: HIT` 추가
+
+5. **클라이언트** (`src/hooks/useReviewSummary.ts`)
+   - summarize-reviews 호출 body에 `region` 전달 → 캐시 키 분리
+
+### Stale 자동 감지 메커니즘
+- 같은 음식점 → fetch-reviews는 매번 호출 (무료, 빠름)
+- 새 블로그/카페 글이 1개라도 추가되면 sourceUrl 목록 SHA-256 달라짐 → cache miss → Claude 재요약
+- 즉, **데이터가 진짜 바뀐 경우만 토큰 소모**
+
+### 사용자 액션 (1회만)
+1. https://supabase.com/dashboard/project/hvucxypkwezwquejhlzg/sql 접속
+2. New Query → `supabase/migrations/005_add_edge_function_cache.sql` 내용 붙여넣기 → Run
+3. 끝 — 이후 모든 호출이 자동 캐시됨
+
+### 검증 (테이블 미생성 상태에서 silent fall-through 확인)
+```
+POST /functions/v1/search-restaurant {"query":"강남 카페","region":"KR"}
+→ HTTP 200, X-Cache: (empty)
+→ 결과 8건 정상 반환 (Naver API 호출됨)
+```
+✅ 캐시 미적용 시에도 앱 동작 영향 없음
+✅ TS 0 errors / 18 validators PASS / 7 fail-cases detect
+
+### 예상 절감 효과 (사용자 SQL 실행 후)
+- 인기 음식점은 cache hit률 90%+ 예상 → Anthropic API 비용 거의 0
+- 같은 검색어 24h 내 재호출은 100% Naver API 절약
+- 응답 시간: cache hit 시 50~100ms (vs Claude 호출 ~1500ms)
