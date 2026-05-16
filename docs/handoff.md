@@ -1,313 +1,384 @@
-# Handoff
+# Handoff — Codex Lead Agent 인수인계
 
-> Last updated: 2026-04-25
+> Last updated: 2026-05-06
+> 이전 작업자: Claude (Sonnet 4.5)
+> 다음 작업자: Codex Lead Agent
+> 인수인계 대상: food-harness-app (음식점 탐색/리뷰 자동 요약 앱)
 
-이 문서는 다른 환경이나 다른 에이전트에서 바로 이어서 작업하기 위한 인수인계 메모입니다.
+---
 
-## Repository
+## 1. 프로젝트 목표
 
-- GitHub: https://github.com/tjwnstjq97-cloud/food-harness-app
-- Visibility: public
-- Main branch: `main`
-- Latest pushed commit at handoff: check `git log --oneline -5`
+**한 줄 정의**: 음식점 이름/지역을 검색하면 외부에 흩어진 블로그·카페 리뷰를 자동 수집해 AI(Claude)로 긍정/부정 포인트 + 시그니처 메뉴까지 요약해주는 모바일/웹 앱.
 
-## Current State
+**제품 본질** — 사용자가 직접 리뷰를 쓰는 게 아님. 이미 인터넷에 존재하는 후기들을 모아 "이 음식점은 뭐가 좋고 뭐가 아쉬운지" 한눈에 보여주는 것이 핵심. (과거 Phase 19에서 사용자 작성 리뷰 시스템을 만들었다가 제품 비전과 맞지 않아 UI는 숨기고 DB/RLS는 보존 중.)
 
-- Expo / React Native / TypeScript 앱
-- Supabase Auth, PostgreSQL, RLS, Edge Function 사용
-- KR / GLOBAL 지역 분기
-- 검색, 상세, 즐겨찾기, 프로필/방문기록, 지도 placeholder 구현
-- 리뷰 장점/아쉬운 점 키워드 칩 구현 (부정 12종, 긍정 12종 — Phase 18)
-- 사용자 직접 리뷰 작성/수정/삭제 (Phase 19, source='user' + RLS)
-- 검색/즐겨찾기/지도 FlatList 성능 튜닝 + RestaurantCard/ReviewCard memo (Phase 23)
-- a11y 라벨/role 적용 (RestaurantCard, ReviewSubmitForm)
-- 홈 첫 화면에 cozy discovery banner 적용
-- Cozy design tokens added in `src/utils/theme.ts`
-- Home screen, search bar, and region badge partially restyled with cozy palette
-- Restaurant detail page partially restyled with cozy dashboard layout
-- Splash/adaptive icon background: `#F7F1E7`
-- GitHub Actions check workflow added
+**Region 분기**:
+- KR (한국): 네이버 검색 + 네이버 블로그/카페 + 네이버 지도 SDK
+- GLOBAL (해외): 구글 Places (New) + 구글 리뷰 + react-native-maps
 
-## Verification
+**플랫폼**: iOS / Android / Web (모두 같은 Expo SDK 54 코드베이스)
 
-항상 작업 전후로 아래 명령을 실행합니다.
+---
+
+## 2. 현재 구현 상태
+
+| 영역 | 상태 | 비고 |
+|---|---|---|
+| 백엔드 (Edge Functions 3종) | 🟢 100% 배포 완료 | search-restaurant, fetch-reviews, summarize-reviews |
+| 검색 (정확도/속도) | 🟢 개선 완료 | 병렬 다중 정렬 + placeholderData |
+| AI 자동 요약 | 🟢 완료 | 긍정/부정/메뉴 단일 Claude 호출 |
+| 캐시 시스템 | 🟡 코드 배포 완료, 사용자 SQL 실행 대기 | migrations/005 미적용 시 silent fall-through |
+| 인증 (회원가입/로그인) | 🟡 코드 완료, Supabase Email Confirm 설정 대기 | signup 200, login은 confirm 필요 |
+| 웹 빌드 | 🟢 부팅 OK | import.meta + SSG 이슈 해결 완료 |
+| iOS/Android 빌드 | 🟡 코드 완료, 사용자 prebuild + 지도 키 발급 대기 | RealMapView.native.tsx 동적 require |
+| 디자인 | 🟡 cozyTheme 기본 적용, Figma MCP 준비됨 | Figma 디자인 입력 대기 |
+| 18 validators + 7 fail-cases | 🟢 모두 PASS | npm run check |
+
+---
+
+## 3. 완료된 작업
+
+### Phase 1~20 (이전 작업자)
+- 기본 검색 / 상세 페이지 / 즐겨찾기 / 히스토리 / 검색 기록
+- Cozy theme 디자인 시스템
+- 카테고리 필터, 정렬, 페이지네이션
+- 온보딩, 인증 게이트, 스켈레톤 로딩
+- 18개 Python validator (하네스 규칙 강제)
+
+### Phase 21+ (이번 세션, 2026-04-28 ~ 05-02)
+1. **외부 리뷰 자동 수집 파이프라인** (`feat: 374ac3a`)
+   - fetch-reviews / summarize-reviews Edge Function 신규
+   - ReviewSummaryView 컴포넌트 (👍 좋은점 / 👎 아쉬운점 + 출처 칩)
+   - Phase 19 사용자 리뷰 UI 숨김 (코드/DB/RLS 보존)
+   - `no_oneline_summary` validator 삭제 (자동 요약 막던 잘못된 규칙)
+
+2. **Web 빌드 정상화** (`feat: 58fd724`)
+   - SSG → SPA (`web.output: "single"`)
+   - Metro custom transformer로 zustand의 `import.meta.env` 폴리필 치환
+   - RealMapView .native/.web 분기 + .d.ts
+
+3. **리뷰 수집량 3배 + UI 순서 개선** (`feat: a5b2775`)
+   - 네이버 카페 검색 추가 (blog 15 + cafe 10 = 25건)
+   - 리뷰 요약을 한눈에보기 바로 아래로 이동
+   - useReviewSummary 기본 limit 10 → 25
+
+4. **검색 정확도 2배 + 체감 렉 제거** (`fix: e6af76b`)
+   - search-restaurant: sim/comment 정렬 + 부스트 쿼리 병렬 호출 (allSettled)
+   - useSearch: `placeholderData: keepPreviousData`
+   - 디바운스 300 → 250ms
+
+5. **대표 메뉴 자동 추출** (`feat: 165d30f`)
+   - summarize-reviews에 signatureMenus 작업 추가 (단일 Claude 호출 확장)
+   - DB 메뉴 우선, 비면 자동 추출 메뉴 fallback
+   - 검증: 어니언 성수 → 앙버터/초코소금빵/헤이즐넛 두쫀쿠 등 5개 추출
+
+6. **DB 캐시 시스템** (`feat: 6380381`)
+   - migrations/005: search_cache + review_summary_cache + RLS service_role only
+   - `_shared/cache.ts` 유틸 (SHA-256 staleness, silent fall-through)
+   - summarize-reviews: source_hash(URL 정렬+SHA256) 동일 시 Claude 호출 0회
+   - search-restaurant: TTL 24h
+   - X-Cache: HIT 헤더
+
+---
+
+## 4. 진행 중인 작업
+
+**없음.** 마지막 커밋(`6380381`)까지 모두 완료 상태로 마무리. TodoList 0건 in_progress.
+
+다만 사용자 측에서 다음 두 가지 대기 중:
+- Supabase Auth → Email Confirm OFF (로그인 게이트 해소)
+- Supabase SQL Editor → `migrations/005` 실행 (캐시 활성화)
+
+---
+
+## 5. 남은 작업
+
+### 우선순위 P0 (사용자 액션 끝나면 즉시 검증)
+- Supabase 마이그레이션 005 실행 후 캐시 HIT 동작 end-to-end 검증
+  - 어니언 성수 2회 호출 → 2번째에 `X-Cache: HIT` 응답 확인
+  - cache miss → Claude 호출 → cache write 확인 (Supabase Dashboard에서 `review_summary_cache` 행 조회)
+
+### 우선순위 P1 (백엔드)
+- **fetch-reviews 캐시 추가** (TTL 1h 정도, 너무 자주 호출되면 비용 누적)
+  - source_hash 갱신을 위해 fetch는 fresh 유지가 맞지만, 같은 음식점 1시간 내 재조회는 캐시 가능
+- **Google Places 리뷰 추가 출처** (GLOBAL용)
+  - 현재 fetch-reviews의 fetchGooglePlaceReviews는 최대 5건만 반환 (Google 정책)
+  - place_id 외에 텍스트 검색으로 보강 가능
+- **카카오맵 API** (KR 추가 출처) — 별도 키 + 약관 검토 필요
+
+### 우선순위 P2 (프론트엔드)
+- **지도 탭 UX 개선** — 현재는 grid fallback. 사용자가 prebuild 하면 실제 지도 표시되지만 UX 다듬어야 함
+  - 현재 위치 자동 중심
+  - 마커 클러스터링 (가까운 마커 묶기)
+- **리뷰 요약 캐시 indicator** — UI에서 "캐시됨 / 최신" 표시 (선택)
+- **상세 페이지 공유 기능** — 음식점 deep link
+- **PWA manifest.json** — 웹에서 "홈 화면에 추가" 가능
+
+### 우선순위 P3 (디자인/품질)
+- **Figma 디자인 적용** — MCP 준비됨, 사용자가 Figma URL 주면 적용
+- **다크모드** — cozyTheme에 darkColors 추가
+- **i18n** — 현재 한국어 하드코딩, GLOBAL region용 영어 번역
+- **에러 바운더리 강화** — Sentry 등 에러 모니터링 연결
+
+### 우선순위 P4 (배포)
+- **iOS TestFlight 배포 파이프라인** — EAS Build 설정
+- **Android Play Store 내부 테스트** — EAS Build + AAB
+- **Web 프로덕션 배포** — Vercel/Cloudflare Pages
+
+---
+
+## 6. 중요한 결정사항
+
+### A. 제품 비전 — 자동 요약이 본질, 사용자 작성 리뷰는 부가
+- Phase 19 사용자 작성 리뷰는 의도와 다른 방향이었음
+- 결정: UI 숨김 + DB/RLS/hooks 보존 (향후 "내 메모" 부활 대비)
+- 관련 파일: `src/hooks/useSubmitReview.ts`, `src/components/ReviewSubmitForm.tsx`, `supabase/migrations/004_add_user_reviews.sql`
+- 절대 이 코드/마이그레이션 지우지 말 것
+
+### B. 캐시 stale 감지는 source_hash 기반
+- 단순 TTL은 "리뷰가 안 바뀌어도 만료" → 토큰 낭비
+- source_hash는 "리뷰가 진짜 바뀌었을 때만 stale" → 정확
+- fetch-reviews는 캐시 안 함 (매번 fresh로 stale 감지에 사용)
+
+### C. 검색 정확도 vs 속도
+- Naver Local API display max 5, start>1 미지원 (시도했으나 실패)
+- 대안: 3개 정렬/쿼리 병렬 호출 + dedupe → 결과 2~3배 + 지연 ≈ 단일 호출
+- 결정: 정확도 우선, 평균 500ms는 허용 가능
+
+### D. 부스트 쿼리는 조건부
+- "어니언 성수" 같은 정확 가게명에 "맛집" 부스트 붙이면 결과 흐려짐
+- 결정: 음식 키워드가 없는 경우에만 부스트, 정확 매칭은 그대로
+
+### E. Expo Web import.meta 우회는 Metro transformer 레벨
+- babel-preset-expo는 node_modules 변환 안 함
+- 해결: `harness/scripts/import-meta-safe-transformer.js`가 web+node_modules 파일에서 RegExp 치환
+
+### F. 지도 SDK는 platform extension
+- `RealMapView.native.tsx` (실제 SDK 동적 require)
+- `RealMapView.web.tsx` (fallback만 렌더)
+- `RealMapView.d.ts` (공통 타입)
+
+---
+
+## 7. 절대 건드리면 안 되는 것
+
+1. **`.env` 파일** — CLAUDE.md 절대 규칙. 읽지도 쓰지도 말 것
+2. **`.env.example` 의 실제 값** — 구조 설명 주석만 수정 가능
+3. **Supabase Service Role Key 하드코딩** — Edge Function 내부 `Deno.env.get` 만 사용
+4. **Phase 19 사용자 리뷰 코드/DB/RLS** — UI만 숨김, 로직은 미래 부활 대비 보존
+   - `src/hooks/useSubmitReview.ts`
+   - `src/components/ReviewSubmitForm.tsx`
+   - `supabase/migrations/004_add_user_reviews.sql`
+   - `reviews` 테이블의 `user_id` 컬럼 + RLS policy
+5. **18 validators** — 모두 PASS 상태 유지. 새 기능 추가 시 관련 validator도 추가
+6. **하네스 규칙** (CLAUDE.md):
+   - 리뷰 출처(source) 없이 요약 금지
+   - 예약/웨이팅 정보 없으면 "정보 없음" 처리 (추측 금지)
+   - API Key 하드코딩 금지
+7. **`SUPABASE_SERVICE_ROLE_KEY`** 를 클라이언트 코드에서 절대 import 금지
+8. **Metro custom transformer (`harness/scripts/import-meta-safe-transformer.js`)** — 웹 빌드 부팅에 필수, 지우면 빈 화면
+
+---
+
+## 8. 관련 파일/폴더
+
+### 핵심 진입점
+- `app.config.js` — Expo 동적 설정 (지도 SDK 키 env 주입)
+- `app/_layout.tsx` — 루트 layout (Providers)
+- `app/(tabs)/index.tsx` — 홈 검색 탭
+- `app/(tabs)/map.tsx` — 지도 탭
+- `app/restaurant/[id].tsx` — 음식점 상세 페이지 (메인 UI)
+
+### Edge Functions (Supabase Deno)
+- `supabase/functions/search-restaurant/index.ts` — 검색 (캐시 적용)
+- `supabase/functions/fetch-reviews/index.ts` — 리뷰 수집 (캐시 X)
+- `supabase/functions/summarize-reviews/index.ts` — Claude 요약 (캐시 적용)
+- `supabase/functions/_shared/types.ts` — 공용 타입
+- `supabase/functions/_shared/cors.ts` — CORS 헤더
+- `supabase/functions/_shared/cache.ts` — 캐시 유틸 (신규)
+
+### DB
+- `supabase/migrations/001_create_tables.sql` ~ `005_add_edge_function_cache.sql`
+- 005는 사용자가 SQL Editor에서 직접 실행해야 함
+
+### 클라이언트 hooks
+- `src/hooks/useSearch.ts` — Edge Function 호출 + DB fallback
+- `src/hooks/useReviewSummary.ts` — fetch-reviews → summarize-reviews 체인
+- `src/hooks/useReviews.ts` — 사용자 리뷰 (Phase 19 잔존)
+- `src/hooks/useFavorites.ts`, `useHistory.ts`, `useMenus.ts`, etc.
+
+### 컴포넌트
+- `src/components/RealMapView.native.tsx` / `.web.tsx` / `.d.ts`
+- `src/components/ReviewSummaryView.tsx` — 자동 요약 표시 UI
+- `src/components/MenuSection.tsx`, `ReviewCard.tsx`, `RestaurantCard.tsx`
+
+### 하네스
+- `harness/validators/*.py` — 18개 validator
+- `harness/validators/run_all.py` — 정상 케이스 테스트
+- `harness/validators/test_fail_cases.py` — 실패 케이스 테스트
+- `harness/scripts/import-meta-safe-transformer.js` — Metro transformer (필수)
+
+### 문서
+- `CLAUDE.md` — 절대 규칙
+- `research.md` — 작업 누적 기록 (필수, 새 작업 시 append)
+- `search.md` — 검증 로그 (외부 API 응답 샘플 포함)
+- `docs/handoff.md` — 이 문서
+- `docs/architecture.md`, `docs/ADR.md`
+
+---
+
+## 9. 실행/테스트 명령
 
 ```bash
+# 의존성
+npm install
+
+# 웹 개발 서버 (가장 빠른 검증 경로)
+npm run web
+
+# 자동 검증 (TS + 18 validators + 7 fail-cases)
 npm run check
+
+# 개별
+npm run typecheck
+npm run validate
+npm run validate:fail
+
+# iOS / Android 개발 빌드 (네이티브 지도 SDK 활성화)
+npx expo prebuild --clean
+npm run ios
+npm run android
+
+# Edge Function 배포 (Docker 불필요 — npx supabase 사용)
+npm run deploy:fn          # search-restaurant만
+npm run deploy:fn:reviews  # fetch + summarize
+npm run deploy:fn:all      # 전부
+
+# Edge Function 직접 호출 검증 (curl)
+curl -X POST https://hvucxypkwezwquejhlzg.supabase.co/functions/v1/search-restaurant \
+  -H 'Content-Type: application/json' \
+  -d '{"query":"성수동 카페","region":"KR","limit":10}'
 ```
 
-현재 마지막 확인 결과:
+---
 
-- TypeScript: pass
-- Python validators: 18 pass (Phase 19, 27 추가: user_review_ownership, no_oneline_summary)
-- Fail-case tests: 7 pass (negative regressions for 5 validators + 임시 디렉터리 패턴 검출)
+## 10. 알려진 문제/리스크
 
-## Important Files
+### 알려진 문제
+1. **로그인 게이트** — Supabase "Confirm email" 기본 ON이라 로그인 안 됨
+   - 해결: 사용자가 Dashboard에서 OFF 토글 (1분)
+2. **캐시 미적용** — migrations/005 실행 전엔 매번 Claude 호출
+   - 해결: 사용자가 SQL Editor에서 실행 (1분)
+3. **Playwright 자동화 불안정** — 사용자 Chrome과 잠금 충돌
+   - 우회: curl로 Edge Function 직접 호출 검증
+4. **fetch-reviews 캐시 없음** — 같은 음식점 100명이 5분 내 조회하면 Naver API 100회 호출
+   - 우선순위 P1으로 fetch-reviews TTL 캐시 추가 권장
 
-- App entry/layout: `app/_layout.tsx`
-- Home/search screen: `app/(tabs)/index.tsx`
-- Detail screen: `app/restaurant/[id].tsx`
-- Favorites screen: `app/(tabs)/favorites.tsx`
-- Profile/history screen: `app/(tabs)/profile.tsx`
-- Search hook: `src/hooks/useSearch.ts`
-- Review hook/highlights: `src/hooks/useReviews.ts`
-- Review submit hook: `src/hooks/useSubmitReview.ts` (Phase 19)
-- Review submit form: `src/components/ReviewSubmitForm.tsx` (Phase 19)
-- Map links: `src/utils/mapLink.ts`
-- Supabase client: `src/lib/supabase.ts`
-- Banner asset: `assets/images/discovery-banner.png`
-- Supabase migrations: `supabase/migrations/` (001~004)
-- Seed data: `supabase/seed/`
-- Validators: `harness/validators/` (18 validators)
+### 리스크
+1. **Naver API 일일 쿼터** — 무료 25,000건/일. 캐시 적용 후 안전
+2. **Anthropic API 비용** — 캐시 적용으로 90%+ 절감 예상. 트래픽 폭증 시 모니터링 필요
+3. **Naver Local API display=5 제한** — 회피 방법 없음 (start>1 미지원 확인). 병렬 다중 호출로 보완 중
+4. **expo-router SSG 미사용** — `web.output: "single"` SPA로 강제 → SEO 약함. 음식점 페이지를 검색엔진 노출하려면 별도 SSR 인프라 필요
+5. **사용자 리뷰 코드 잔존** — 미래에 "내 메모" 부활 결정 시 UI 복원만 하면 되지만, 그때까지 코드 부담
+6. **지도 키 누락** — 사용자가 EXPO_PUBLIC_NAVER_MAP_CLIENT_ID 등 안 넣으면 빈 지도. graceful degradation으로 grid fallback 표시 중
 
-## Recent Work Log
+---
 
-### User Reviews (Phase 19, 2026-04-25)
+## 11. 다음에 해야 할 작업 3개
 
-- New migration: `supabase/migrations/004_add_user_reviews.sql`
-  - Added `reviews.user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL`
-  - Added `UNIQUE(user_id, restaurant_id)` — 한 사용자가 한 음식점에 1개 리뷰만
-  - Added INSERT/UPDATE/DELETE RLS policies (own rows only, source must be 'user')
-  - 기존 외부 리뷰(user_id IS NULL)는 영향 없음
-- New hook: `src/hooks/useSubmitReview.ts`
-  - submit / update / remove mutations
-  - rating 4.0+ → positive / 2.5- → negative / 그 외 neutral 자동 분류
-  - 23505 (UNIQUE 위반) → 친절한 안내 메시지
-- New component: `src/components/ReviewSubmitForm.tsx`
-  - rating 별 5개 탭, 5~500자 멀티라인 입력
-  - 로컬 검증 + 에러 박스 + 글자수 카운터
-  - a11y label/role 적용
-- Updated `src/components/ReviewCard.tsx`:
-  - "내 리뷰" 배지 + 카드 색 강조
-  - onEdit/onDelete props (isMine일 때만 활성)
-- Updated `app/restaurant/[id].tsx`:
-  - "+ 내 리뷰 작성" 버튼 (이미 작성한 경우 숨김)
-  - 비로그인 사용자는 로그인 유도 카드
-  - 수정/삭제 핸들러 (Alert 확인 → mutation → toast)
-- Updated `src/types/review.ts`: `userId`, `isMine` 필드 추가
-- Updated `src/hooks/useReviews.ts`:
-  - user 컨텍스트 의존 → queryKey에 userId 추가
-  - row.user_id 매핑 + isMine 자동 계산
-- Updated seed: `supabase/seed/test_domain_data.sql` DELETE 절 — user_id IS NULL만 삭제 (사용자 리뷰 보존)
-
-### Performance + a11y (Phase 23, 2026-04-25)
-
-- `src/components/RestaurantCard.tsx`:
-  - `React.memo` 래핑
-  - card press / favorite toggle에 accessibilityRole + accessibilityLabel + accessibilityState
-  - thumbnail은 accessible={false} (장식용)
-- `src/components/ReviewCard.tsx`:
-  - `React.memo` 래핑
-  - edit/delete 버튼에 a11y label/role
-- FlatList 튜닝:
-  - `app/(tabs)/index.tsx`: initialNumToRender 8 / windowSize 11 / removeClippedSubviews
-  - `app/(tabs)/favorites.tsx`: initialNumToRender 10 / windowSize 11
-  - `app/(tabs)/map.tsx`: initialNumToRender 6 / windowSize 7
-
-### Validator + Test 확장 (Phase 27, 2026-04-25)
-
-- New: `harness/validators/review/user_review_ownership.py`
-  - source='user'인데 user_id 없으면 실패
-- New: `harness/validators/review/no_oneline_summary.py`
-  - 코드베이스에서 oneLineSummary / summarizeReview / "한 줄 요약" 등 패턴 스캔
-  - 사용자 명시 거절 항목 (handoff "Work To Avoid") 회귀 방지
-  - SKIP_DIRS / SKIP_FILES로 오탐 차단
-- New script: `npm run validate:fail` (`test_fail_cases.py`)
-  - 6 fail-case + 1 임시 디렉터리 기반 통합 테스트
-- `npm run check`이 typecheck → validate → validate:fail 순서로 실행
-
-### Proposed Features 분리 (2026-04-24)
-
-- 외부 의존(라이브러리 설치, API 키, 결제 계정 등) 작업을 `proposed_features.md`로 분리
-- 우선순위 🔴/🟡/🟢/🔵 표시
-- 13개 항목 + "🚫 거절 이력" 섹션 (재제안 방지)
-
-### GitHub Setup
-
-- Installed GitHub CLI.
-- Authenticated as `tjwnstjq97-cloud`.
-- Public repo configured at `origin`.
-- Pushed `main`.
-
-### README and Scripts
-
-- Added `README.md`.
-- Added scripts in `package.json`:
-  - `typecheck`
-  - `validate`
-  - `check`
-
-### Map Hook Cleanup
-
-- Updated `src/hooks/useMap.ts`.
-- Removed old `search-naver` / `search-google` references.
-- Aligned with the actual unified Edge Function: `search-restaurant`.
-
-### Review Highlights
-
-- Updated `src/hooks/useReviews.ts`.
-- Builds keyword highlights from valid sourced reviews.
-- Positive examples: `맛`, `국물`, `가성비`, `친절`, `신선도`.
-- Negative examples: `긴 대기`, `높은 가격`, `적은 양`, `평범함`.
-- Updated detail page to show `장점` and `아쉬운 점` chips.
-
-### Negative Keywords Expanded (Phase 18, 2026-04-24)
-
-- Updated `src/hooks/useReviews.ts` `NEGATIVE_KEYWORDS` rules.
-- Added 7 new negative categories per user request:
-  - `불친절` — 무례, 버릇없, 태도, rude, attitude
-  - `흡연` — 담배, 흡연, 담배 냄새, smoke, smoking
-  - `서빙 지연` — 늦게 나오, 음식이 늦, 한참 만에, slow service
-  - `냄새` — 냄새가, 악취, 비위, 쩐내, smelly, stink
-  - `차별` — 차별, 인종차별, 외국인 차별, racist, discriminat
-  - `위생` — 더럽, 청결, 벌레, 머리카락, dirty, hygiene, unsanitary
-  - `시끄러움` — 시끄러, 소음, 떠들, noisy, loud
-- Existing 5 categories tightened to avoid false positives
-  (e.g., `예약 필요` no longer matches generic `예약`).
-- Added matching seed reviews to `supabase/seed/test_domain_data.sql`
-  for `test_kr_001`, `test_kr_002`, `test_kr_003`, `test_gl_001`.
-- No UI changes needed — detail page chip section auto-renders new keywords.
-- User must re-run `supabase/seed/test_domain_data.sql` to see new chips.
-- Rule: still no LLM-based one-line summary (handoff "Work To Avoid" honored).
-
-### Discovery Banner
-
-- Generated a warm globe/speech-bubble banner.
-- Committed selected asset as `assets/images/discovery-banner.png`.
-- Applied it to the home empty state / first search screen.
-- Changed app splash/adaptive icon background to warm ivory.
-- Optimized the committed banner from about 2 MB to about 1 MB.
-
-### Cozy Theme Pass
-
-- Added `src/utils/theme.ts`.
-- Started centralizing colors for warm ivory, sage, clay orange, charcoal, positive, and negative chips.
-- Applied the new palette to:
-  - `app/(tabs)/index.tsx`
-  - `app/restaurant/[id].tsx`
-  - `src/components/SearchBar.tsx`
-  - `src/components/RegionBadge.tsx`
-  - `src/components/MenuSection.tsx`
-
-### Detail Page Cozy Pass
-
-- Reworked top section of `app/restaurant/[id].tsx`.
-- Added:
-  - soft eyebrow label
-  - compact action row (`지도`, `전화`, `예약`, `공유`)
-  - 4-cell decision dashboard (`평점`, `웨이팅`, `예약`, `리뷰 분위기`)
-- Kept existing behaviors:
-  - favorites toggle
-  - share
-  - phone
-  - reservation link/phone
-  - waiting details
-  - review cards and expand/collapse
-- This is a partial redesign pass, not the final full polish.
-
-### Search Result Card Meta Pass
-
-- Added `src/hooks/useRestaurantCardMeta.ts`.
-- Search result cards in `app/(tabs)/index.tsx` now load batched meta by restaurant ids.
-- Card-level additions:
-  - rating + review count
-  - waiting label
-  - reservation status label
-  - representative menu preview
-- If domain data is missing, cards gracefully fall back to the original lighter layout.
-
-### Map Tab UI Skeleton Pass
-
-- Replaced the old placeholder `app/(tabs)/map.tsx`.
-- Map tab now includes:
-  - search bar
-  - quick search chips
-  - recent search shortcuts
-  - faux map canvas with marker dots
-  - selected place preview card
-  - result list
-  - detail page navigation
-- This is still a non-SDK map implementation.
-- Real Naver / Google map SDK integration is still pending.
-
-### CI
-
-- Added `.github/workflows/check.yml`.
-- Runs `npm ci` and `npm run check` on push/PR to `main`.
-
-### Design Exploration
-
-Preferred concept:
-
-- Name: `Cozy Map Insight`
-- Direction: warm Korean restaurant app + map discovery + review insights
-- Palette direction:
-  - Warm ivory background
-  - Muted sage for KR accents
-  - Softer blue for GLOBAL accents
-  - Clay orange for primary actions
-  - Olive green for positive chips
-  - Dusty rose/red for negative chips
-
-Generated mockups/images:
-
-- Several preview images exist under `/Users/seojunseop/.codex/generated_images/...`.
-- Only `assets/images/discovery-banner.png` is committed.
-- A newer "less AI-looking" banner preview was generated after the committed one, but it has not been selected, copied into the project, or committed yet.
-- User asked to avoid committing new creative-direction choices without review. Leave candidate creative assets as recommendations until selected.
-
-## Copyright / Asset Notes
-
-- The committed banner is AI-generated from an original prompt.
-- It uses generic elements: globe, speech bubbles, question/exclamation symbols, heart, utensils, map pin.
-- It does not intentionally copy a specific brand, character, logo, or known app style.
-- It should be low risk for internal app banner/onboarding usage.
-- For final brand identity, app icon, trademark usage, or App Store-level branding, create a simplified custom mark or have a designer refine/vectorize it.
-
-## Supabase Assumptions
-
-The user said app runtime checks are done and Supabase project setup is already applied.
-
-Expected SQL order:
-
-```text
-supabase/migrations/001_create_tables.sql
-supabase/migrations/002_add_profiles_and_restaurants.sql
-supabase/migrations/003_add_domain_tables.sql
-supabase/migrations/004_add_user_reviews.sql      # Phase 19 — 사용자 리뷰 user_id + RLS
-supabase/seed/test_restaurants.sql
-supabase/seed/test_domain_data.sql                # 004 적용 후 재실행 권장
+### Top 1: 캐시 동작 end-to-end 검증 (사용자가 SQL 실행한 직후)
+```
+1. 사용자에게 SQL 실행 여부 확인
+2. curl로 같은 음식점 2회 summarize-reviews 호출
+3. 1차: X-Cache 헤더 없음, 응답 시간 ~1500ms (Claude 호출)
+4. 2차: X-Cache: HIT, 응답 시간 ~100ms (DB만 조회)
+5. Supabase Dashboard에서 review_summary_cache 행 확인 (hit_count 증가 확인)
+6. search.md에 검증 결과 append + commit
 ```
 
-Expected Edge Function:
-
-```bash
-npm run deploy:fn
+### Top 2: fetch-reviews TTL 캐시 추가 (P1, 사용자 추가 작업 불필요)
+```
+1. _shared/cache.ts에 readReviewsCache / writeReviewsCache 추가 (TTL 1h)
+2. migrations/006_add_reviews_cache.sql 작성 (search_cache 패턴 그대로)
+3. fetch-reviews/index.ts에 캐시 wire-in
+4. 배포 + 검증 (같은 음식점 1시간 내 재조회 시 Naver API 0회)
+5. 효과: 트래픽 폭증 시 Naver API 쿼터 보호
 ```
 
-## Near-Term Work Queue
+### Top 3: 지도 탭 사용자 위치 자동 중심
+```
+1. expo-location 권한 요청 (이미 plugin 추가됨)
+2. useLocation hook 신규 (위치 권한 + 현재 좌표 반환)
+3. map.tsx에서 검색 결과 없을 때 사용자 좌표를 RealMapView center로 전달
+4. RealMapView.native.tsx의 NaverMapBranch / GoogleMapBranch camera 초기값에 추가
+5. 권한 거부 시 fallback (서울시청 좌표 기본)
+6. iOS infoPlist + Android permissions 이미 설정됨 (app.config.js)
+```
 
-Recommended next order:
+---
 
-1. Continue restaurant detail page polish using `Cozy Map Insight`.
-   - Review card tone, external links, section density, header finish.
-2. Continue search result card polish.
-   - Better chip color rules, global/local nuance, spacing, optional icon actions.
-3. Continue map tab polish.
-   - better marker behavior, richer result cells, eventual handoff to real SDK.
-4. Continue replacing hard-coded colors with `src/utils/theme.ts`.
-5. Add README screenshots or app screenshots after user approves visual direction.
-6. Review the less AI-looking banner candidate and decide whether to replace the committed banner.
+## 12. 사용자에게 물어봐야 하는 결정사항
 
-## Recommendations Waiting For User Decision
+### A. 마이그레이션 005 실행 여부 확인 (즉시)
+- "Supabase SQL Editor에서 `supabase/migrations/005_add_edge_function_cache.sql` 실행하셨나요?"
+- 미실행이면 캐시 동작 안 함 → 위 Top 1 작업 보류
 
-- Whether to replace `assets/images/discovery-banner.png` with the newer less-AI-looking banner candidate.
-- Whether app icon/splash should use the globe/speech-bubble motif or a simpler custom mark.
-- Exact final detail-page visual density before a full redesign pass.
+### B. Supabase Email Confirm 설정 (즉시)
+- "Authentication > Providers > Email > Confirm email 토글 OFF 하셨나요?"
+- 안 했으면 로그인 안 됨 → 웹 UI 직접 검증 불가
 
-## Work To Avoid For Now
+### C. 디자인 변경 의향
+- "Figma 디자인 있으세요? URL/파일 주시면 cozyTheme 위에 새 디자인 시스템 적용 가능"
+- "없으면 현재 cozyTheme 유지하고 기능 개발 계속"
 
-- Do not add a separate "one-line review summary"; user explicitly removed it.
-- Do not add a separate "menu recommendation" feature; menu/representative menu already covers it.
-- Do not overcomplicate the banner with too many symbols or decorative clutter.
-- Do not commit `.env`, `.expo`, `ios/`, `node_modules/`, or generated defaults outside selected assets.
+### D. 모바일 빌드 우선순위
+- "지금 모바일 앱 (iOS/Android) 빌드 시급한가요?"
+- 시급 → 지도 SDK 키 3개 발급 안내 + prebuild 실행 가이드
+- 나중 → 웹에서 검증/개선만 계속
+
+### E. 추가 데이터 소스
+- "리뷰 수집 출처 더 늘릴까요?"
+  - 카카오맵 (KR, API 키 필요)
+  - 망고플레이트 (KR, 약관 검토 필요)
+  - 인스타그램 (글로벌, 비공식)
+- 현재: 네이버 블로그 + 카페 (KR), 구글 리뷰 5건 (GLOBAL)
+
+### F. 배포 인프라
+- "프로덕션 배포 계획 있나요?"
+  - 웹: Vercel / Cloudflare Pages / GitHub Pages?
+  - iOS: TestFlight → App Store?
+  - Android: 내부 테스트 → Play Store?
+- 결정에 따라 EAS Build 설정 / CI/CD 파이프라인 구성
+
+### G. 향후 기능 우선순위
+- "다음 중 어느 것 먼저 만들까요?"
+  1. 지도 마커 클러스터링 (가까운 음식점 묶기)
+  2. 음식점 상세 페이지 공유 (deep link)
+  3. PWA manifest (홈 화면 추가)
+  4. 다크모드
+  5. 사용자 메모 기능 ("내 메모" 부활 — Phase 19 UI 복원)
+  6. 가까운 음식점 추천 (위치 기반)
+
+---
+
+## 부록: 환경 정보
+
+```
+Node.js v25.8.2
+Expo SDK 54.0.34
+React Native 0.81.5
+TypeScript 5.9.2
+Supabase project: hvucxypkwezwquejhlzg
+GitHub: https://github.com/tjwnstjq97-cloud/food-harness-app
+브랜치: main
+최신 커밋: 6380381 (feat: Postgres 캐시 도입)
+```
+
+**Anthropic 모델**: claude-haiku-4-5 (summarize-reviews 내부)
+**Edge Function 배포 상태**: search-restaurant, fetch-reviews, summarize-reviews (모두 최신)
+**Secrets 등록 상태**: NAVER_SEARCH_CLIENT_ID/SECRET, GOOGLE_MAPS_API_KEY, ANTHROPIC_API_KEY (검증 완료)
+
+---
+
+이 문서로 다음 에이전트가 0에서부터 컨텍스트를 다시 잡지 않고 바로 작업 이어갈 수 있어야 합니다. 추가 컨텍스트는 `search.md`(검증 로그) 와 `research.md`(작업 누적 기록) 참고.
