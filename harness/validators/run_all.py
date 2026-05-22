@@ -28,6 +28,7 @@ from data.restaurant_region_required import validate as validate_region_required
 from data.menu_source_required import validate as validate_menu_source
 from review.summary_source_required import validate as validate_summary_source
 from review.summary_raw_free import validate as validate_summary_raw_free
+from review.summary_source_urls_safe import validate as validate_summary_source_urls_safe
 
 # 더미 테스트 데이터 (정상 케이스)
 SAMPLE_DATA = {
@@ -100,6 +101,7 @@ VALIDATORS = [
     ("restaurant_region_required", validate_region_required),
     ("menu_source_required", validate_menu_source),
     ("summary_source_required", validate_summary_source),
+    ("summary_source_urls_safe", validate_summary_source_urls_safe),
     ("summary_raw_free", validate_summary_raw_free),
 ]
 

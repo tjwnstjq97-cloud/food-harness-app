@@ -13,6 +13,7 @@ from review.review_source import validate as v_review
 from review.user_review_ownership import validate as v_user_review_ownership
 from review.summary_source_required import validate as v_summary_source
 from review.summary_raw_free import validate as v_summary_raw_free
+from review.summary_source_urls_safe import validate as v_summary_source_urls_safe
 from reservation.reservation_check import validate as v_reservation
 
 FAIL_CASES = [
@@ -82,6 +83,25 @@ FAIL_CASES = [
                 "negativePoints": [],
                 "totalReviewCount": 1,
                 "sources": [{"type": "naver_blog", "count": 1, "urls": []}],
+                "generatedAt": "2026-04-28T00:00:00Z",
+            }
+        },
+    ),
+    (
+        "자동 요약 sources.urls에 token query 포함",
+        v_summary_source_urls_safe,
+        {
+            "review_summary_v2": {
+                "positivePoints": ["맛있다"],
+                "negativePoints": [],
+                "totalReviewCount": 1,
+                "sources": [
+                    {
+                        "type": "naver_blog",
+                        "count": 1,
+                        "urls": ["https://example.com/post?access_token=abc123"],
+                    }
+                ],
                 "generatedAt": "2026-04-28T00:00:00Z",
             }
         },
