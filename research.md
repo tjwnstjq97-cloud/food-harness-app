@@ -2582,3 +2582,224 @@ npx expo start --ios
 - TypeScript: 0 errors
 - Validators: 18/18 PASS (summary_source_required 추가)
 - Fail cases: 7/7 detected (자동 요약 sources 비어있음 추가)
+
+## 2026-05-16 — Codex Lead Agent 안정화 점검
+
+### 목표
+- 사용자 우선순위: "어플 버그 잡아내고 작동 완성하기"
+- 중앙 하네스 프롬프트를 기준으로 target repo에 Codex Lead Agent harness 설치 후 상태 복원
+- `.env` 파일은 읽거나 수정하지 않음. 웹 부트 검증은 `EXPO_NO_DOTENV=1`로 실행
+
+### 점검 결과
+- `npm run check` 기준 TypeScript, 18 validators, 7 fail-cases 모두 통과
+- Expo Web dev server가 `http://localhost:8081`에서 정상 부팅
+- Browser 검증:
+  - 온보딩 화면 렌더 확인
+  - KR 선택 후 로그인 화면 이동 확인
+  - 회원가입 화면 이동 확인
+  - 콘솔 error 없음
+- 남은 브라우저 warning:
+  - React Native Web의 `shadow*` 스타일 deprecation
+  - dependency/runtime의 `props.pointerEvents` deprecation
+  - 현재 기본 동작을 막는 오류는 아니므로 이번 안정화 범위에서는 보존
+
+### 수정
+- `app/(auth)/register.tsx`
+  - Supabase Email Confirm OFF 상태에서 `signUp`이 즉시 session을 반환하면 "바로 시작" 안내 후 tabs로 이동
+  - Email Confirm ON 상태에서는 기존처럼 이메일 인증 안내 후 login으로 이동
+- `src/providers/AuthProvider.tsx`
+  - 초기 `getSession()` 실패 시 앱이 loading 상태에 갇히지 않도록 catch/finally 처리
+  - unmount 후 상태 업데이트를 막는 mounted guard 추가
+
+### 미진행 / 체크포인트
+- Top 1 cache E2E는 사용자 확인 전까지 보류
+  - Supabase Email Confirm OFF 확인 필요
+  - `supabase/migrations/005_add_edge_function_cache.sql` 수동 실행 확인 필요
+
+## 2026-05-16 — 홈 UI 압축 + 메뉴/웨이팅 데이터 보강
+
+### 목표
+- 사용자 피드백: 홈의 `기본순/이름순/별점순` 정렬 UI가 길고, 검색 결과 카드끼리/칸끼리 겹치는 느낌이 있음
+- 웨이팅 정보가 빈약하므로 근거 있는 외부 리뷰 단서라도 상세에 보여주기
+- 메뉴 정보는 정확한 출처 우선: DB에 네이버 플레이스/구글 지도 출처 메뉴가 있으면 우선 표시, 없으면 외부 리뷰에서 자동 추출
+- 새 외부 데이터 소스 추가는 checkpoint 대상이라 이번 범위에서는 Kakao/MangoPlate/Instagram 등 미추가
+
+### 수정
+- 홈 검색 결과 정렬을 짧은 segmented control로 변경
+  - 표시: `기본 / 이름 / 별점`
+  - 접근성 라벨은 기존 의미(`기본순/이름순/별점순`) 유지
+- 홈 카드 레이아웃 보강
+  - 카테고리 배지 최대폭/말줄임 적용
+  - 카드 내부 gap과 wrap row 간격 정리
+  - Google Places 구조화 평점/리뷰 수를 카드 표시와 별점 정렬 fallback으로 사용
+- Google Places Text Search FieldMask 확장
+  - `rating`, `userRatingCount`, `priceLevel`, `websiteUri`, `googleMapsUri`를 Restaurant 타입까지 전달
+  - 네이버 공식 Local Search는 메뉴/웨이팅 직접 필드가 없으므로 기존 출처 기반 검색/리뷰 흐름 유지
+- 리뷰 요약 파이프라인 확장
+  - `waitingSignal` 추가: 웨이팅/대기/줄/오픈런 단서가 리뷰에 명시된 경우에만 생성
+  - 상세 웨이팅 섹션은 DB waiting 값이 없을 때만 `waitingSignal`을 "근거 기반 추정"으로 fallback 표시
+  - `useReviewSummary` 기본 리뷰 입력 개수 25 → 30
+- 메뉴 섹션 출처 안내 개선
+  - `naver_place`, `google_place`, `google_maps` 출처 메뉴가 있으면 직접 출처 메뉴 우선 안내
+  - 없으면 기존처럼 외부 리뷰 자동 추출 메뉴 안내
+
+### 검증
+- `npm run check`: TypeScript 0 errors / validators 18 PASS / fail-cases 7 detected
+- Expo Web `http://localhost:8081/register` 부팅 확인, browser console error 없음
+
+### 남은 한계
+- 홈 결과 화면은 인증 게이트 뒤에 있어 실제 검색 카드 시각 검증은 로그인 설정 확인 후 E2E로 재확인 필요
+- Google Places 공식 필드에는 일반 메뉴 카테고리성 필드는 있으나 실제 메뉴명 전체를 안정적으로 제공하는 필드는 제한적임
+- Naver 공식 Local Search API는 업체 검색 결과 필드 중심이라 메뉴/웨이팅 직접 수집은 공식 API만으로는 불가. 추가 출처는 사용자 승인 필요
+
+## 2026-05-16 — Cache E2E 재검증
+
+### 실행
+- `fetch-reviews`를 `어니언 성수 / KR / limit 30`으로 호출 → 30건 수집 성공
+- 같은 리뷰 30건을 `summarize-reviews`에 두 번 연속 호출
+- `search-restaurant`도 `어니언 성수 / KR`으로 두 번 연속 호출
+
+### 결과
+- `fetch-reviews`: 200, 30건
+- `summarize-reviews` 1회차: 200, `X-Cache` 없음
+- `summarize-reviews` 2회차: 200, `X-Cache` 없음
+- `search-restaurant` 1회차: 200, `X-Cache` 없음
+- `search-restaurant` 2회차: 200, `X-Cache` 없음
+
+### 판단
+- 배포된 함수 자체는 정상 동작하지만 캐시 E2E는 아직 PASS가 아님
+- 반복 호출에서 `X-Cache: HIT`가 없으므로 migration 005 미적용, cache-enabled 함수 미배포, 또는 service-role 캐시 접근 silent fall-through 가능성이 큼
+- Supabase SQL 실행/Edge Function 재배포는 외부 계정 작업이므로 명시적 승인 전에는 수행하지 않음
+
+## 2026-05-16 — 반자율 연속 진행 모드 + waitingSignal validator 보강
+
+### 운영 규칙 반영
+- 로컬 코드 수정, mock/dry-run, 테스트, 문서 업데이트, 안전한 refactor는 단계별 허가 없이 진행
+- `.env` 접근, DB migration 실행, 배포, production/staging 접근, 외부 API 실호출, secret 읽기/출력, destructive git, 운영 데이터 rewrite/delete는 checkpoint로 중단
+
+### 수정
+- `harness/validators/review/summary_source_required.py`
+  - `waitingSignal`이 있을 때 `label`, `evidence`, `sourceCount` 필수 검증 추가
+  - `minMinutes`/`maxMinutes`는 0 이상의 정수만 허용
+  - `maxMinutes < minMinutes` 방지
+  - sources count가 1 이상 정수인지 추가 검증
+- `harness/validators/run_all.py`
+  - 정상 샘플에 근거 있는 `waitingSignal` 추가
+
+### 검증
+- targeted dry-run: `waitingSignal.evidence` 누락 케이스를 실패로 탐지
+- `python3 -m py_compile` 통과
+- `npm run check` 통과: TypeScript / 18 validators / 7 fail-cases 모두 PASS
+
+## 2026-05-16 — 실제 앱 흐름 로컬 dry-run
+
+### 목표
+- 앱 실행, 주요 화면 렌더, 검색 입력, 리뷰 fetch/cache, AI 요약 경계, validator 적용 여부를 실서비스 호출 없이 재현 가능하게 확인
+- 사용자 안전 규칙에 따라 `.env`, 외부 API, DB migration, 배포는 수행하지 않음
+
+### 수정
+- `harness/tests/app_flow_dry_run.py` 추가
+  - 음식점 fixture가 required fields/region validator를 통과하는지 확인
+  - 리뷰 fixture가 source/sourceUrl attribution validator를 통과하는지 확인
+  - `review_summary_v2`가 sources/signatureMenus/waitingSignal 계약을 만족하는지 확인
+  - `waitingSignal.evidence` 누락 fixture가 invalid 처리되는지 확인
+  - 메뉴 fixture가 source-backed menu validator를 통과하는지 확인
+  - 소스 계약 점검: `fetch-reviews` 후 `summarize-reviews`, source-less summary UI 차단, 검색 previous data 유지, 홈 sort 접근성 라벨, fetch-reviews partial failure tolerance
+- `package.json`
+  - `appflow:dry-run` 스크립트 추가
+  - `npm run check`에 app flow dry-run 포함
+- `src/components/SearchBar.tsx`
+  - 좁은 화면에서 입력칸이 검색 버튼과 겹치지 않도록 `minWidth: 0`, 버튼 `flexShrink: 0`/`minWidth` 적용
+
+### 검증
+- `npm run check`: TypeScript PASS / validators 18 PASS / fail-cases 7 detected / app_flow_dry_run PASS
+- Expo Web: `EXPO_NO_DOTENV=1 npm run web -- --port 8081`
+- Browser:
+  - `/` 및 `/login` 로그인 화면 렌더 확인
+  - `/register` 회원가입 화면 렌더 확인
+  - console error 없음
+
+### 남은 한계
+- 인증 뒤 홈 검색/상세 화면의 실제 브라우저 E2E는 Supabase 세션/로그인이 필요하므로 현재 규칙상 checkpoint 대상
+- 검색/리뷰/요약의 실제 Edge Function cache HIT 검증은 migration 005 적용 및 배포 상태 확인이 필요하므로 checkpoint 대상
+
+## 2026-05-16 — 검색 앱형 디자인 개편
+
+### 목표
+- 음식점 리뷰 자동 수집 → AI 요약 본질은 유지
+- 홈과 검색 결과를 랜딩/배너형 화면보다 일반적인 모바일 검색 앱에 가깝게 정리
+- 버튼/입력창 겹침 방지, 카드 안 카드 구조 방지, source/evidence 규칙 유지
+
+### 수정
+- `src/components/SearchBar.tsx`
+  - 검색 아이콘이 있는 큰 검색창 variant 추가
+  - 큰 CTA 버튼 높이/폭 고정, 입력칸 `minWidth: 0` 유지로 좁은 화면 겹침 방지
+- `app/(tabs)/index.tsx`
+  - 첫 화면을 큰 검색창, 지역 전환 pill, 지도 기반 검색 affordance, 빠른 필터 chip 중심으로 재구성
+  - 과한 배너 이미지를 제거하고 검색 도구형 정보 구조로 변경
+  - 결과 카드를 일반 검색 결과처럼 제목 → 한 줄 요약 → 평점/리뷰 메타 → AI 요약/근거 chip 순서로 개편
+  - 웨이팅/예약 신호는 기존처럼 근거가 있을 때만 chip으로 표시
+- `app/restaurant/[id].tsx`
+  - 상세의 리뷰 요약 섹션 이름을 `핵심 리뷰 요약`으로 정리
+  - AI 요약 바로 위에 `출처 N종 · 외부 리뷰 N건 근거` 또는 `출처/근거 정보 없음` 표시
+  - `waitingSignal`이 있을 때만 웨이팅 근거 chip 표시
+- `harness/tests/app_flow_dry_run.py`
+  - 검색 앱형 홈 구조, 지도 affordance, scan-friendly 결과 메타, 상세 evidence count 표시를 로컬 계약으로 추가
+
+### 검증
+- `npm run check`: TypeScript PASS / validators 18 PASS / fail-cases 7 detected / app_flow_dry_run PASS
+- Expo Web: `EXPO_NO_DOTENV=1 npm run web -- --port 8081`
+- Browser:
+  - `/login` 렌더 확인
+  - `/register` 렌더 확인
+  - console error 없음
+
+### 남은 한계
+- 홈/검색 결과 화면은 인증 세션 뒤에 있으므로 실제 브라우저 시각 검증은 Supabase auth/DB checkpoint 후 가능
+- 외부 API, DB migration, Edge Function 배포, `.env` 접근은 수행하지 않음
+
+## 2026-05-16 — 로컬 polish + mock 기반 검증
+
+### 목표
+- 외부 API/DB 없이 검색 앱형 시각 계층과 상태 UI를 실제 브라우저로 확인
+- 검색 결과 카드의 텍스트 overflow, source/evidence count, 웨이팅/예약 chip 표시를 더 안전하게 정리
+- 상세 요약에서 waitingSignal/evidence/sourceCount 규칙을 UI 레벨에서도 지키도록 보강
+
+### 수정
+- `src/components/SearchResultCard.tsx`
+  - 검색 결과 카드를 재사용 컴포넌트로 분리
+  - 음식점명, 한 줄 요약, 평점/리뷰 수, AI 요약 상태, 근거 수/출처 수, 웨이팅/예약 chip을 한 카드에서 일관 표시
+  - sourceCount/reviewCount가 없으면 `근거 정보 없음`, `근거 부족`으로 표시
+  - 긴 텍스트는 `numberOfLines`, `minWidth: 0`, flex wrap으로 overflow 방지
+- `src/hooks/useRestaurantCardMeta.ts`
+  - 리뷰 source 종류 수를 계산해 `sourceCount`로 카드에 전달
+- `src/components/ReviewSummaryView.tsx`
+  - source/evidence count와 count 기반 신뢰도 표시 추가
+  - 대표 근거 source 표시
+  - waitingSignal은 `label`, `evidence`, `sourceCount >= 1`일 때만 표시
+  - min/max가 음수/비정수/역전이면 시간 범위를 숨기고 `시간 정보 없음` 처리
+  - source 없는 요약은 `정보 없음`과 근거 부족 설명으로 표시
+- `app/restaurant/[id].tsx`
+  - 상세 화면의 waitingSignal fallback도 동일한 safe validation을 통과한 경우에만 표시
+- `src/fixtures/searchPreview.ts`
+  - source/evidence 구조를 지키는 mock 검색 결과와 리뷰 요약 fixture 추가
+  - 근거 부족/정보 없음 fixture도 추가
+- `app/(auth)/mock-search.tsx`
+  - DB/auth 없이 `/mock-search`에서 홈/검색 결과/상세 요약 상태를 브라우저 검증 가능하게 추가
+- `harness/tests/app_flow_dry_run.py`
+  - invalid waiting `sourceCount=0`, invalid min/max range 실패 검증 추가
+  - mock preview, SearchResultCard, safe waiting UI 계약을 정적 검증에 추가
+
+### 검증
+- `npm run check`: TypeScript PASS / validators 18 PASS / fail-cases 7 detected / app_flow_dry_run PASS
+- Expo Web: `EXPO_NO_DOTENV=1 npm run web -- --port 8081`
+- Browser:
+  - `/login` 렌더 확인
+  - `/register` 렌더 확인
+  - `/mock-search` 렌더 확인
+  - 검색 앱형 첫 화면 mock, 결과 카드 3종, 상세 요약, 웨이팅 신호, 근거 부족 상태 확인
+  - console error 없음
+
+### 남은 한계
+- 실제 authenticated 홈/상세 E2E는 Supabase auth/DB checkpoint 후 가능
+- 외부 API, DB migration, Edge Function 배포, `.env` 접근은 수행하지 않음

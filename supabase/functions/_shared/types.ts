@@ -25,6 +25,11 @@ export interface RestaurantResult {
   phone?: string;
   latitude: number;
   longitude: number;
+  rating?: number;
+  reviewCount?: number;
+  priceLevel?: string;
+  websiteUrl?: string;
+  googleMapsUri?: string;
   source: string; // "naver" | "google"
 }
 
@@ -66,11 +71,21 @@ export interface SummaryMenu {
   mentionCount: number;
 }
 
+/** 외부 리뷰에서 근거가 확인된 웨이팅 단서 */
+export interface SummaryWaitingSignal {
+  label: string;
+  evidence: string;
+  minMinutes?: number;
+  maxMinutes?: number;
+  sourceCount: number;
+}
+
 /** AI 자동 요약 결과 — sentiment 분리 + 출처 첨부 필수 */
 export interface ReviewSummaryV2 {
   positivePoints: string[];  // 좋다는 점 (한 줄씩)
   negativePoints: string[];  // 아쉬운 점 (한 줄씩)
   signatureMenus: SummaryMenu[]; // 자주 언급된 메뉴 (자동 추출)
+  waitingSignal?: SummaryWaitingSignal | null; // 리뷰에서 확인된 웨이팅 단서
   totalReviewCount: number;  // 요약에 사용한 리뷰 총 개수
   sources: SummarySource[];  // 출처별 메타 — 비어있으면 validator 실패
   generatedAt: string;       // ISO 8601

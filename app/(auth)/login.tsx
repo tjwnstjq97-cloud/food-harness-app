@@ -16,7 +16,7 @@ import {
   Platform,
   ActivityIndicator,
 } from "react-native";
-import { Link } from "expo-router";
+import { router } from "expo-router";
 import { useAuthActions } from "../../src/hooks/useAuth";
 
 export default function LoginScreen() {
@@ -118,11 +118,13 @@ export default function LoginScreen() {
 
         <View style={styles.footer}>
           <Text style={styles.footerText}>계정이 없으신가요? </Text>
-          <Link href="/(auth)/register" asChild>
-            <TouchableOpacity>
-              <Text style={styles.linkText}>회원가입</Text>
-            </TouchableOpacity>
-          </Link>
+          <TouchableOpacity
+            onPress={() => router.replace("/(auth)/register")}
+            accessibilityRole="button"
+            accessibilityLabel="회원가입 화면으로 이동"
+          >
+            <Text style={styles.linkText}>회원가입</Text>
+          </TouchableOpacity>
         </View>
       </View>
     </KeyboardAvoidingView>

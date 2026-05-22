@@ -278,7 +278,20 @@ async function searchGoogle(
       "Content-Type": "application/json",
       "X-Goog-Api-Key": apiKey,
       "X-Goog-FieldMask":
-        "places.id,places.displayName,places.formattedAddress,places.types,places.location,places.nationalPhoneNumber",
+        [
+          "places.id",
+          "places.displayName",
+          "places.formattedAddress",
+          "places.types",
+          "places.location",
+          "places.nationalPhoneNumber",
+          "places.rating",
+          "places.userRatingCount",
+          "places.priceLevel",
+          "places.businessStatus",
+          "places.websiteUri",
+          "places.googleMapsUri",
+        ].join(","),
     },
     body: JSON.stringify({
       textQuery: query + " restaurant",
@@ -312,6 +325,12 @@ async function searchGoogle(
     phone: item.nationalPhoneNumber ?? undefined,
     latitude: item.location?.latitude ?? 0,
     longitude: item.location?.longitude ?? 0,
+    rating: typeof item.rating === "number" ? item.rating : undefined,
+    reviewCount:
+      typeof item.userRatingCount === "number" ? item.userRatingCount : undefined,
+    priceLevel: item.priceLevel ?? undefined,
+    websiteUrl: item.websiteUri ?? undefined,
+    googleMapsUri: item.googleMapsUri ?? undefined,
     source: "google",
   }));
 }

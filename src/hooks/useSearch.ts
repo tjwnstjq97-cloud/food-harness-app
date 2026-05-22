@@ -39,6 +39,11 @@ function toRestaurant(row: Record<string, unknown>, region: Region): Restaurant 
     latitude: Number(row.latitude ?? 0),
     longitude: Number(row.longitude ?? 0),
     thumbnailUrl: row.thumbnail_url ? String(row.thumbnail_url) : undefined,
+    rating: row.rating != null ? Number(row.rating) : undefined,
+    reviewCount: row.review_count != null ? Number(row.review_count) : undefined,
+    priceLevel: row.price_level ? String(row.price_level) : undefined,
+    websiteUrl: row.website_url ? String(row.website_url) : undefined,
+    googleMapsUri: row.google_maps_uri ? String(row.google_maps_uri) : undefined,
   };
 }
 
@@ -54,6 +59,11 @@ function toRestaurantFromEdge(item: Record<string, unknown>, region: Region): Re
     latitude: Number(item.latitude ?? 0),
     longitude: Number(item.longitude ?? 0),
     thumbnailUrl: item.thumbnailUrl ? String(item.thumbnailUrl) : undefined,
+    rating: item.rating != null ? Number(item.rating) : undefined,
+    reviewCount: item.reviewCount != null ? Number(item.reviewCount) : undefined,
+    priceLevel: item.priceLevel ? String(item.priceLevel) : undefined,
+    websiteUrl: item.websiteUrl ? String(item.websiteUrl) : undefined,
+    googleMapsUri: item.googleMapsUri ? String(item.googleMapsUri) : undefined,
   };
 }
 

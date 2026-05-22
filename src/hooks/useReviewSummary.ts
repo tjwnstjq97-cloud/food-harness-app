@@ -20,6 +20,7 @@ const EMPTY_SUMMARY: ReviewSummaryV2 = {
   positivePoints: [],
   negativePoints: [],
   signatureMenus: [],
+  waitingSignal: null,
   totalReviewCount: 0,
   sources: [],
   generatedAt: new Date(0).toISOString(),
@@ -29,7 +30,7 @@ interface UseReviewSummaryArgs {
   restaurantId: string;
   restaurantName: string;
   region: Region;
-  /** 입력 리뷰 최대 개수 (기본 25 — 블로그 60% + 카페 40%로 분할) */
+  /** 입력 리뷰 최대 개수 (기본 30 — 블로그 60% + 카페 40%로 분할) */
   limit?: number;
   enabled?: boolean;
 }
@@ -38,7 +39,7 @@ export function useReviewSummary({
   restaurantId,
   restaurantName,
   region,
-  limit = 25,
+  limit = 30,
   enabled = true,
 }: UseReviewSummaryArgs) {
   return useQuery({
@@ -97,6 +98,7 @@ export function useReviewSummary({
                 mentionCount: Number(m.mentionCount ?? 1) || 1,
               }))
           : [],
+        waitingSignal: normalizeWaitingSignal(summary.waitingSignal),
         totalReviewCount: Number(summary.totalReviewCount ?? 0),
         sources: Array.isArray(summary.sources) ? summary.sources : [],
         generatedAt: String(summary.generatedAt ?? new Date().toISOString()),
@@ -106,4 +108,26 @@ export function useReviewSummary({
     staleTime: 1000 * 60 * 30, // 30분 캐시 (Anthropic 호출 비용 절약)
     retry: 1,
   });
+}
+
+function normalizeWaitingSignal(value: unknown): ReviewSummaryV2["waitingSignal"] {
+  if (!value || typeof value !== "object") return null;
+  const raw = value as Record<string, unknown>;
+  const label = typeof raw.label === "string" ? raw.label.trim() : "";
+  const evidence = typeof raw.evidence === "string" ? raw.evidence.trim() : "";
+  if (!label || !evidence) return null;
+
+  const minMinutes = Number(raw.minMinutes);
+  const maxMinutes = Number(raw.maxMinutes);
+  return {
+    label,
+    evidence,
+    ...(Number.isFinite(minMinutes) && minMinutes >= 0
+      ? { minMinutes: Math.round(minMinutes) }
+      : {}),
+    ...(Number.isFinite(maxMinutes) && maxMinutes >= 0
+      ? { maxMinutes: Math.round(maxMinutes) }
+      : {}),
+    sourceCount: Math.max(1, Number(raw.sourceCount ?? 1) || 1),
+  };
 }

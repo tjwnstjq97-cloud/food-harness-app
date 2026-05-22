@@ -63,6 +63,10 @@ export function MenuSection({
   const [expanded, setExpanded] = useState(false);
   const canCollapse = items.length > collapseAfter;
   const visibleItems = canCollapse && !expanded ? items.slice(0, collapseAfter) : items;
+  const hasReviewExtracted = items.some((m) => m.source === "review_extracted");
+  const hasPlaceSource = items.some((m) =>
+    ["naver_place", "google_place", "google_maps"].includes(m.source)
+  );
 
   return (
     <View style={styles.section}>
@@ -90,7 +94,9 @@ export function MenuSection({
               </TouchableOpacity>
             )}
             <Text style={styles.sourceNote}>
-              {items.some((m) => m.source === "review_extracted")
+              {hasPlaceSource
+                ? "* 네이버 플레이스/구글 지도 등 출처 있는 메뉴를 우선 표시합니다."
+                : hasReviewExtracted
                 ? "* 외부 리뷰에서 자동 추출된 메뉴 (가격은 매장 확인 필요)"
                 : "* 출처 있는 메뉴만 표시됩니다."}
             </Text>

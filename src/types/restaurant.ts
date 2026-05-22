@@ -19,6 +19,11 @@ export interface Restaurant {
   latitude: number;
   longitude: number;
   thumbnailUrl?: string;
+  rating?: number;          // Google Places 등 구조화 출처가 주는 평점
+  reviewCount?: number;     // Google Places 등 구조화 출처가 주는 리뷰 수
+  priceLevel?: string;      // Google Places priceLevel 등
+  websiteUrl?: string;      // 공식 사이트/지도 출처 URL
+  googleMapsUri?: string;   // Google Maps 상세 링크
 }
 
 /** 음식점 상세 (통합) */

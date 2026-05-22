@@ -19,6 +19,7 @@ export default function AuthLayout() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="login" />
       <Stack.Screen name="register" />
+      <Stack.Screen name="mock-search" options={{ title: "검색 미리보기", headerShown: true }} />
     </Stack>
   );
 }

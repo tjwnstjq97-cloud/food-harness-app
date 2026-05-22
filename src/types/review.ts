@@ -69,11 +69,29 @@ export interface SummaryMenu {
   mentionCount: number;
 }
 
+/** 외부 리뷰에서 근거가 확인된 웨이팅 단서 */
+export interface SummaryWaitingSignal {
+  label: string;            // 표시용 한 줄 요약
+  evidence: string;         // 근거 문장 또는 근거 요약 — 비어있으면 사용 금지
+  minMinutes?: number;      // 명시된 경우에만
+  maxMinutes?: number;      // 명시된 경우에만
+  sourceCount: number;      // 웨이팅 근거가 나온 리뷰 수
+}
+
+/** UI에 직접 노출 가능한 대표 리뷰 문장 — source 없는 항목은 표시 금지 */
+export interface RepresentativeReviewEvidence {
+  text: string;
+  source: string;
+  sourceUrl?: string;
+}
+
 /** AI 자동 요약 결과 */
 export interface ReviewSummaryV2 {
   positivePoints: string[];
   negativePoints: string[];
   signatureMenus: SummaryMenu[]; // 리뷰에서 자동 추출된 메뉴
+  waitingSignal?: SummaryWaitingSignal | null; // 리뷰에서 확인된 웨이팅 단서
+  representativeReviews?: RepresentativeReviewEvidence[];
   totalReviewCount: number;
   sources: SummarySource[];
   generatedAt: string;

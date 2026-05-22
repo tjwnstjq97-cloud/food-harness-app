@@ -57,6 +57,8 @@ Deno.serve(async (req: Request) => {
       const empty: SummarizeReviewsResponse = {
         positivePoints: [],
         negativePoints: [],
+        signatureMenus: [],
+        waitingSignal: null,
         totalReviewCount: 0,
         sources: [],
         generatedAt: new Date().toISOString(),
@@ -107,6 +109,7 @@ Deno.serve(async (req: Request) => {
       positivePoints: summary.positivePoints,
       negativePoints: summary.negativePoints,
       signatureMenus: summary.signatureMenus,
+      waitingSignal: summary.waitingSignal,
       totalReviewCount: reviews.length,
       sources,
       generatedAt: new Date().toISOString(),
@@ -178,6 +181,13 @@ async function callAnthropicSummary(
   positivePoints: string[];
   negativePoints: string[];
   signatureMenus: { name: string; mentionCount: number }[];
+  waitingSignal: {
+    label: string;
+    evidence: string;
+    minMinutes?: number;
+    maxMinutes?: number;
+    sourceCount: number;
+  } | null;
 }> {
   const apiKey = Deno.env.get("ANTHROPIC_API_KEY") ?? "";
   if (!apiKey) {
@@ -204,9 +214,15 @@ async function callAnthropicSummary(
   - 자주 언급된 순으로 최대 5개
   - "맛있다", "추천" 같은 형용사/동사는 메뉴 아님
   - 메뉴명만 (예: "베이글", "라떼", "파스타") — 설명/가격 금지
+- waitingSignal: 웨이팅/대기/줄/오픈런/혼잡이 리뷰에 명시된 경우에만 작성
+  - 근거가 없으면 반드시 null
+  - label: 사용자에게 보여줄 짧은 한 줄 (예: "주말 대기 길음", "오픈런 권장", "약 20~40분")
+  - evidence: 리뷰에 나온 근거를 짧게 요약. 추측 금지
+  - minMinutes/maxMinutes: 리뷰에 숫자 시간이 명시된 경우에만 정수로 입력
+  - sourceCount: 웨이팅 단서가 언급된 리뷰 개수
 
 응답 형식 (이것만 출력):
-{"positivePoints": ["...", "..."], "negativePoints": ["...", "..."], "signatureMenus": [{"name": "...", "mentionCount": 5}, ...]}`;
+{"positivePoints": ["...", "..."], "negativePoints": ["...", "..."], "signatureMenus": [{"name": "...", "mentionCount": 5}, ...], "waitingSignal": null}`;
 
   const userPrompt = `음식점: ${restaurantName}
 
@@ -255,6 +271,7 @@ ${reviewBlock}
     positivePoints?: unknown;
     negativePoints?: unknown;
     signatureMenus?: unknown;
+    waitingSignal?: unknown;
   };
   try {
     parsed = JSON.parse(jsonText);
@@ -281,7 +298,9 @@ ${reviewBlock}
         .slice(0, 5)
     : [];
 
-  return { positivePoints, negativePoints, signatureMenus };
+  const waitingSignal = normalizeWaitingSignal(parsed.waitingSignal);
+
+  return { positivePoints, negativePoints, signatureMenus, waitingSignal };
 }
 
 /** 응답에서 JSON만 추출 (```json ... ``` 또는 그대로) */
@@ -292,4 +311,36 @@ function extractJson(raw: string): string {
   const brace = raw.match(/\{[\s\S]*\}/);
   if (brace?.[0]) return brace[0];
   return raw;
+}
+
+function normalizeWaitingSignal(value: unknown):
+  | {
+      label: string;
+      evidence: string;
+      minMinutes?: number;
+      maxMinutes?: number;
+      sourceCount: number;
+    }
+  | null {
+  if (!value || typeof value !== "object") return null;
+  const raw = value as Record<string, unknown>;
+  const label = typeof raw.label === "string" ? raw.label.trim().slice(0, 40) : "";
+  const evidence =
+    typeof raw.evidence === "string" ? raw.evidence.trim().slice(0, 120) : "";
+  const sourceCount = Math.max(1, Number(raw.sourceCount ?? 1) || 1);
+  if (!label || !evidence) return null;
+
+  const minMinutes = Number(raw.minMinutes);
+  const maxMinutes = Number(raw.maxMinutes);
+  return {
+    label,
+    evidence,
+    ...(Number.isFinite(minMinutes) && minMinutes >= 0
+      ? { minMinutes: Math.round(minMinutes) }
+      : {}),
+    ...(Number.isFinite(maxMinutes) && maxMinutes >= 0
+      ? { maxMinutes: Math.round(maxMinutes) }
+      : {}),
+    sourceCount,
+  };
 }

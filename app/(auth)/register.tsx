@@ -17,7 +17,7 @@ import {
   Platform,
   ActivityIndicator,
 } from "react-native";
-import { Link, router } from "expo-router";
+import { router } from "expo-router";
 import { useAuthActions } from "../../src/hooks/useAuth";
 
 function getPasswordStrength(pw: string): { level: number; label: string; color: string } {
@@ -67,12 +67,18 @@ export default function RegisterScreen() {
 
     setLoading(true);
     try {
-      await signUp({ email: email.trim(), password });
-      Alert.alert(
-        "회원가입 완료 🎉",
-        "이메일 인증 링크를 확인해주세요.\n인증 후 로그인할 수 있습니다.",
-        [{ text: "확인", onPress: () => router.replace("/(auth)/login") }]
-      );
+      const data = await signUp({ email: email.trim(), password });
+      if (data.session) {
+        Alert.alert("회원가입 완료 🎉", "바로 음식점 탐색을 시작할 수 있어요.", [
+          { text: "확인", onPress: () => router.replace("/(tabs)") },
+        ]);
+      } else {
+        Alert.alert(
+          "회원가입 완료 🎉",
+          "이메일 인증 링크를 확인해주세요.\n인증 후 로그인할 수 있습니다.",
+          [{ text: "확인", onPress: () => router.replace("/(auth)/login") }]
+        );
+      }
     } catch (error: unknown) {
       const message =
         error instanceof Error ? error.message : "회원가입에 실패했습니다.";
@@ -188,11 +194,13 @@ export default function RegisterScreen() {
 
         <View style={styles.footer}>
           <Text style={styles.footerText}>이미 계정이 있으신가요? </Text>
-          <Link href="/(auth)/login" asChild>
-            <TouchableOpacity>
-              <Text style={styles.linkText}>로그인</Text>
-            </TouchableOpacity>
-          </Link>
+          <TouchableOpacity
+            onPress={() => router.replace("/(auth)/login")}
+            accessibilityRole="button"
+            accessibilityLabel="로그인 화면으로 이동"
+          >
+            <Text style={styles.linkText}>로그인</Text>
+          </TouchableOpacity>
         </View>
       </View>
     </KeyboardAvoidingView>

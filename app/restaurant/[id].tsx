@@ -15,7 +15,7 @@
  *
  * 하네스 규칙: region 없는 지도 기능 호출 금지.
  */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 import {
   View,
   Text,
@@ -49,9 +49,50 @@ import { ReviewSummaryView } from "../../src/components/ReviewSummaryView";
 // 사용자 직접 작성 UI는 숨김. 코드/DB/RLS는 향후 "내 메모" 기능 부활 대비 보존.
 import { localizeCategory } from "../../src/utils/categoryMap";
 import { cozyTheme } from "../../src/utils/theme";
-import { useAuth } from "../../src/providers/AuthProvider";
+import type { ReviewSummaryV2, SummaryWaitingSignal } from "../../src/types/review";
 
 const colors = cozyTheme.colors;
+
+function getSafeWaitingSignal(
+  signal: ReviewSummaryV2["waitingSignal"]
+): SummaryWaitingSignal | null {
+  if (!signal?.label?.trim() || !signal.evidence?.trim()) return null;
+  if (!Number.isInteger(signal.sourceCount) || signal.sourceCount < 1) return null;
+
+  const hasMin = signal.minMinutes != null;
+  const hasMax = signal.maxMinutes != null;
+  const minOk =
+    !hasMin ||
+    (Number.isInteger(signal.minMinutes) && Number(signal.minMinutes) >= 0);
+  const maxOk =
+    !hasMax ||
+    (Number.isInteger(signal.maxMinutes) && Number(signal.maxMinutes) >= 0);
+
+  if (!minOk || !maxOk) {
+    return { ...signal, minMinutes: undefined, maxMinutes: undefined };
+  }
+  if (
+    hasMin &&
+    hasMax &&
+    Number(signal.maxMinutes) < Number(signal.minMinutes)
+  ) {
+    return { ...signal, minMinutes: undefined, maxMinutes: undefined };
+  }
+
+  return signal;
+}
+
+function getSummaryConfidenceLabel(totalReviewCount: number, sourceCount: number): string {
+  if (totalReviewCount >= 20 && sourceCount >= 2) return "신뢰도 높음";
+  if (totalReviewCount >= 5 && sourceCount >= 1) return "신뢰도 보통";
+  return "근거 부족";
+}
+
+function getRepresentativeReview(summary: ReviewSummaryV2 | undefined) {
+  return summary?.representativeReviews?.find(
+    (review) => review.text.trim().length > 0 && review.source.trim().length > 0
+  ) ?? null;
+}
 
 export default function RestaurantDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -72,9 +113,6 @@ export default function RestaurantDetailScreen() {
   const isLoading = !storeMatchesId && dbLoading;
 
   const { toast, showToast } = useToast();
-
-  // ── 인증 (즐겨찾기 등 다른 기능에서 사용)
-  const { isAuthenticated } = useAuth();
 
   // ── 도메인 훅 (restaurant ID 기반 병렬 조회)
   const { isFavorite, toggleFavorite, isToggling } = useFavorites();
@@ -111,6 +149,29 @@ export default function RestaurantDetailScreen() {
       mentionCount: m.mentionCount,
     }));
   }, [dbSignatureMenus, reviewSummary]);
+
+  const reviewWaitingFallback = useMemo(() => {
+    const signal = getSafeWaitingSignal(reviewSummary?.waitingSignal);
+    if (!signal) return null;
+    const hasRange =
+      signal.minMinutes != null &&
+      signal.maxMinutes != null &&
+      signal.maxMinutes >= signal.minMinutes;
+
+    return {
+      waiting: {
+        minutes: signal.maxMinutes ?? signal.minMinutes ?? 0,
+        evidence: `${signal.evidence} · 외부 리뷰 ${signal.sourceCount}건 근거`,
+        confidence: "estimated" as const,
+        updatedAt: reviewSummary?.generatedAt,
+        estimatedRange: hasRange
+          ? { min: signal.minMinutes!, max: signal.maxMinutes! }
+          : undefined,
+      },
+      displayText: signal.label,
+      isEstimated: true,
+    };
+  }, [reviewSummary]);
 
   // ── 진입 시 History 자동 기록 (TASK 5)
   useEffect(() => {
@@ -214,16 +275,40 @@ export default function RestaurantDetailScreen() {
   const isKR = restaurant.region === "KR";
   const accentColor = isKR ? colors.kr : colors.global;
   const accentSoft = isKR ? colors.krSoft : colors.globalSoft;
-  const waitingSummary = waitingData?.displayText ?? "정보 없음";
+  const effectiveWaiting =
+    waitingData?.waiting || !reviewWaitingFallback
+      ? waitingData
+      : reviewWaitingFallback;
+  const waitingSummary = effectiveWaiting?.displayText ?? "정보 없음";
   const reservationSummary = reservationData?.statusLabel ?? "정보 없음";
-  const ratingSummary = reviewData?.totalCount ? reviewData.averageRating.toFixed(1) : "--";
+  const ratingSummary = reviewData?.totalCount
+    ? reviewData.averageRating.toFixed(1)
+    : restaurant.rating != null
+      ? restaurant.rating.toFixed(1)
+      : "--";
   // 자동 요약 우선, fallback으로 DB 카운트
   const summaryReviewCount = reviewSummary?.totalReviewCount ?? 0;
-  const reviewCountSummary = `${summaryReviewCount > 0 ? summaryReviewCount : reviewData?.totalCount ?? 0}개`;
+  const reviewCountSummary = `${
+    summaryReviewCount > 0
+      ? summaryReviewCount
+      : reviewData?.totalCount ?? restaurant.reviewCount ?? 0
+  }개`;
   const positiveCountDisplay =
     reviewSummary?.positivePoints.length ?? reviewData?.positiveCount ?? 0;
   const negativeCountDisplay =
     reviewSummary?.negativePoints.length ?? reviewData?.negativeCount ?? 0;
+  const summarySourceCount = reviewSummary?.sources.length ?? 0;
+  const summaryEvidenceCount = reviewSummary?.totalReviewCount ?? 0;
+  const summaryEvidenceText =
+    summarySourceCount > 0 && summaryEvidenceCount > 0
+      ? `출처 ${summarySourceCount}종 · 외부 리뷰 ${summaryEvidenceCount}건 근거`
+      : "출처/근거 정보 없음";
+  const summaryConfidenceLabel = getSummaryConfidenceLabel(
+    summaryEvidenceCount,
+    summarySourceCount
+  );
+  const representativeReview = getRepresentativeReview(reviewSummary);
+  const safeSummaryWaitingSignal = getSafeWaitingSignal(reviewSummary?.waitingSignal);
 
   return (
     <View style={styles.wrapper}>
@@ -264,7 +349,7 @@ export default function RestaurantDetailScreen() {
         <View style={styles.headerEyebrowRow}>
           <View style={[styles.headerEyebrow, { backgroundColor: accentSoft }]}>
             <Text style={[styles.headerEyebrowText, { color: accentColor }]}>
-              {isKR ? "국내 맛집 인사이트" : "글로벌 맛집 인사이트"}
+              {isKR ? "국내 검색 결과" : "글로벌 검색 결과"}
             </Text>
           </View>
         </View>
@@ -374,7 +459,7 @@ export default function RestaurantDetailScreen() {
               <Text style={styles.metricLabel}>웨이팅</Text>
               <Text style={styles.metricValue}>{waitingSummary}</Text>
               <Text style={styles.metricSub}>
-                {waitingData?.isEstimated ? "추정 정보" : "실시간 또는 최신 정보"}
+                {effectiveWaiting?.isEstimated ? "근거 기반 추정" : "실시간 또는 최신 정보"}
               </Text>
             </View>
             <View style={styles.metricItem}>
@@ -399,7 +484,41 @@ export default function RestaurantDetailScreen() {
             한눈에 보기(총합본) 바로 아래에 배치해서 사용자가 핵심 정보 흐름으로 자연스럽게 이어볼 수 있게 함. ── */}
       <View style={styles.section}>
         <View style={styles.reviewHeaderRow}>
-          <Text style={styles.sectionTitle}>리뷰 요약</Text>
+          <Text style={styles.sectionTitle}>핵심 리뷰 요약</Text>
+        </View>
+        <View style={styles.summaryEvidenceBar}>
+          <Text style={styles.summaryEvidenceText}>{summaryEvidenceText}</Text>
+          <View
+            style={[
+              styles.summaryConfidenceChip,
+              summaryConfidenceLabel === "근거 부족" && styles.summaryConfidenceChipWeak,
+            ]}
+          >
+            <Text
+              style={[
+                styles.summaryConfidenceText,
+                summaryConfidenceLabel === "근거 부족" && styles.summaryConfidenceTextWeak,
+              ]}
+              numberOfLines={1}
+            >
+              {summaryConfidenceLabel}
+            </Text>
+          </View>
+          {safeSummaryWaitingSignal && (
+            <View style={styles.summaryWaitingChip}>
+              <Text style={styles.summaryWaitingText} numberOfLines={1}>
+                웨이팅 근거 있음
+              </Text>
+            </View>
+          )}
+        </View>
+        <View style={styles.representativeReviewBar}>
+          <Text style={styles.representativeReviewLabel}>대표 리뷰 문장</Text>
+          <Text style={styles.representativeReviewText} numberOfLines={3}>
+            {representativeReview
+              ? representativeReview.text
+              : "정보 없음 · 출처 문장이 확인될 때만 표시합니다."}
+          </Text>
         </View>
         <View style={styles.infoCard}>
           <ReviewSummaryView
@@ -490,9 +609,9 @@ export default function RestaurantDetailScreen() {
               {/* 대기 시간 + 추정 배지 */}
               <View style={styles.waitingRow}>
                 <Text style={styles.waitingText}>
-                  {waitingData?.displayText ?? "정보 없음"}
+                  {effectiveWaiting?.displayText ?? "정보 없음"}
                 </Text>
-                {waitingData?.isEstimated && (
+                {effectiveWaiting?.isEstimated && (
                   <View style={styles.estimatedBadge}>
                     <Text style={styles.estimatedText}>추정</Text>
                   </View>
@@ -500,23 +619,23 @@ export default function RestaurantDetailScreen() {
               </View>
 
               {/* 범위 표시 (추정치가 있을 때) */}
-              {waitingData?.waiting?.estimatedRange && (
+              {effectiveWaiting?.waiting?.estimatedRange && (
                 <Text style={styles.waitingRange}>
-                  약 {waitingData.waiting.estimatedRange.min}~{waitingData.waiting.estimatedRange.max}분 예상
+                  약 {effectiveWaiting.waiting.estimatedRange.min}~{effectiveWaiting.waiting.estimatedRange.max}분 예상
                 </Text>
               )}
 
               {/* 근거 */}
-              {!!waitingData?.waiting?.evidence && (
+              {!!effectiveWaiting?.waiting?.evidence && (
                 <Text style={styles.waitingEvidence}>
-                  📌 {waitingData.waiting.evidence}
+                  📌 {effectiveWaiting.waiting.evidence}
                 </Text>
               )}
 
               {/* 업데이트 시간 */}
-              {!!waitingData?.waiting?.updatedAt && (
+              {!!effectiveWaiting?.waiting?.updatedAt && (
                 <Text style={styles.waitingUpdatedAt}>
-                  업데이트: {new Date(waitingData.waiting.updatedAt).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })}
+                  업데이트: {new Date(effectiveWaiting.waiting.updatedAt).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })}
                 </Text>
               )}
             </>
@@ -918,6 +1037,78 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     marginBottom: 4,
+  },
+  summaryEvidenceBar: {
+    minHeight: 34,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surfaceSoft,
+  },
+  summaryEvidenceText: {
+    flex: 1,
+    minWidth: 160,
+    fontSize: 12,
+    color: colors.textMuted,
+    fontWeight: "700",
+  },
+  summaryConfidenceChip: {
+    flexShrink: 0,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: "#E8F5E9",
+  },
+  summaryConfidenceChipWeak: {
+    backgroundColor: colors.surfaceMuted,
+  },
+  summaryConfidenceText: {
+    fontSize: 11,
+    color: colors.kr,
+    fontWeight: "800",
+  },
+  summaryConfidenceTextWeak: {
+    color: colors.textMuted,
+  },
+  summaryWaitingChip: {
+    flexShrink: 0,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: colors.primarySurface,
+  },
+  summaryWaitingText: {
+    fontSize: 11,
+    color: colors.primary,
+    fontWeight: "800",
+  },
+  representativeReviewBar: {
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+    gap: 4,
+    marginBottom: 8,
+  },
+  representativeReviewLabel: {
+    fontSize: 11,
+    color: colors.textSubtle,
+    fontWeight: "800",
+  },
+  representativeReviewText: {
+    fontSize: 12,
+    color: colors.textMuted,
+    lineHeight: 18,
+    fontWeight: "600",
   },
   writeReviewBtn: {
     paddingHorizontal: 12,

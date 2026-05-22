@@ -6,9 +6,12 @@ import { getReservationLabel } from "../types/reservation";
 export interface RestaurantCardMeta {
   averageRating?: number;
   reviewCount: number;
+  sourceCount: number;
   reservationLabel?: string;
   waitingLabel?: string;
   signatureMenus: string[];
+  businessStatusLabel?: string;
+  businessStatusTone?: "open" | "closed" | "unknown";
 }
 
 type RestaurantCardMetaMap = Record<string, RestaurantCardMeta>;
@@ -16,6 +19,7 @@ type RestaurantCardMetaMap = Record<string, RestaurantCardMeta>;
 function createEmptyMeta(): RestaurantCardMeta {
   return {
     reviewCount: 0,
+    sourceCount: 0,
     signatureMenus: [],
   };
 }
@@ -69,29 +73,35 @@ export function useRestaurantCardMeta(restaurantIds: string[]) {
       if (reservationsRes.error && !isSafeTableError(reservationsRes.error)) throw reservationsRes.error;
       if (waitingRes.error && !isSafeTableError(waitingRes.error)) throw waitingRes.error;
 
-      const reviewBuckets = new Map<string, { total: number; sum: number }>();
+      const reviewBuckets = new Map<string, { total: number; sum: number; sources: Set<string> }>();
       for (const row of reviewsRes.data ?? []) {
         const restaurantId = String(row.restaurant_id ?? "");
         const source = String(row.source ?? "");
         if (!restaurantId || !source) continue;
 
         const rating = Number(row.rating ?? 0);
-        const bucket = reviewBuckets.get(restaurantId) ?? { total: 0, sum: 0 };
+        const bucket = reviewBuckets.get(restaurantId) ?? {
+          total: 0,
+          sum: 0,
+          sources: new Set<string>(),
+        };
         bucket.total += 1;
         bucket.sum += rating;
+        bucket.sources.add(source);
         reviewBuckets.set(restaurantId, bucket);
       }
 
       for (const [restaurantId, bucket] of reviewBuckets.entries()) {
         if (!baseMap[restaurantId]) continue;
         baseMap[restaurantId].reviewCount = bucket.total;
+        baseMap[restaurantId].sourceCount = bucket.sources.size;
         baseMap[restaurantId].averageRating =
           bucket.total > 0 ? Math.round((bucket.sum / bucket.total) * 10) / 10 : undefined;
       }
 
       const menuBuckets = new Map<
         string,
-        Array<{ name: string; isSignature: boolean; mentionCount?: number; source: string }>
+        { name: string; isSignature: boolean; mentionCount?: number; source: string }[]
       >();
       for (const row of menusRes.data ?? []) {
         const restaurantId = String(row.restaurant_id ?? "");

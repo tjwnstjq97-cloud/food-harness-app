@@ -384,3 +384,201 @@ POST /functions/v1/search-restaurant {"query":"강남 카페","region":"KR"}
 - 인기 음식점은 cache hit률 90%+ 예상 → Anthropic API 비용 거의 0
 - 같은 검색어 24h 내 재호출은 100% Naver API 절약
 - 응답 시간: cache hit 시 50~100ms (vs Claude 호출 ~1500ms)
+
+---
+
+## 2026-05-16 — App Stability Verification
+
+### Commands
+
+```
+EXPO_NO_DOTENV=1 npm run web -- --port 8081
+npm run check
+```
+
+### Results
+
+| Check | Result |
+|---|---|
+| TypeScript | PASS |
+| Validators | PASS — 18/18 |
+| Fail cases | PASS — 7/7 detected |
+| Web HTTP | PASS — `http://localhost:8081` returned 200 |
+| Browser boot | PASS — onboarding, login, and register screens rendered |
+| Console errors | PASS — no errors observed |
+
+### Notes
+
+- Cache E2E validation was not run because it is gated on user confirmation that Email Confirm is OFF and migration 005 has been executed.
+- Browser warnings observed are non-blocking React Native Web deprecations (`shadow*` style props, `props.pointerEvents`).
+
+---
+
+## 2026-05-16 — Home UI + Source-Backed Data Pass
+
+### Commands
+
+```
+npm run check
+```
+
+### Results
+
+| Check | Result |
+|---|---|
+| TypeScript | PASS |
+| Validators | PASS — 18/18 |
+| Fail cases | PASS — 7/7 detected |
+| Web boot | PASS — register route rendered |
+| Console errors | PASS — no browser errors observed |
+
+### Notes
+
+- Home sort labels were shortened to `기본 / 이름 / 별점`.
+- Google Places structured rating/review count is now carried through search results when available.
+- Review summary can now return a source-backed `waitingSignal`; detail page uses it only as fallback when DB waiting data is absent.
+- New external providers were not added because Kakao/MangoPlate/Instagram or similar sources require an explicit checkpoint.
+
+---
+
+## 2026-05-16 — Cache E2E Recheck
+
+### Flow
+
+```
+fetch-reviews: 어니언 성수 / KR / limit 30
+summarize-reviews: same 30 reviews, first call
+summarize-reviews: same 30 reviews, second call
+search-restaurant: 어니언 성수 / KR, first + second call
+```
+
+### Results
+
+| Step | HTTP | X-Cache | Result |
+|---|---:|---|---|
+| fetch-reviews | 200 | n/a | 30 reviews |
+| summarize-reviews first | 200 | empty | 30 reviews, 6 positive, 4 negative, 5 menus |
+| summarize-reviews second | 200 | empty | Same shape, no HIT |
+| search-restaurant first | 200 | empty | 1 result |
+| search-restaurant second | 200 | empty | 1 result, no HIT |
+
+### Conclusion
+
+- Edge Functions are operational.
+- Cache E2E is not passing yet because repeated calls did not return `X-Cache: HIT`.
+- Most likely blockers: migration 005 has not actually been applied in Supabase, deployed Edge Functions are not the cache-enabled build, or service-role cache access is failing silently as designed.
+- No secrets were read or printed.
+- I did not deploy functions or run Supabase SQL because those are external account/deployment actions.
+
+---
+
+## 2026-05-16 — Local Validator Dry-Run
+
+### Commands
+
+```
+python3 -m py_compile harness/validators/review/summary_source_required.py harness/validators/run_all.py
+npm run check
+```
+
+### Targeted Case
+
+`waitingSignal` with `label` and `sourceCount` but missing `evidence`.
+
+Result: validator returned invalid with `waitingSignal.evidence가 없습니다. 웨이팅 추정은 근거 필수입니다`.
+
+### Result
+
+- TypeScript: PASS
+- Validators: PASS — 18/18
+- Fail cases: PASS — existing 7/7 detected
+
+---
+
+## 2026-05-16 — Local App Flow Dry-Run
+
+### Commands
+
+```
+npm run check
+EXPO_NO_DOTENV=1 npm run web -- --port 8081
+```
+
+### Results
+
+| Check | Result |
+|---|---|
+| TypeScript | PASS |
+| Validators | PASS — 18/18 |
+| Fail cases | PASS — 7/7 detected |
+| App flow dry-run | PASS |
+| Web boot | PASS — `http://localhost:8081` |
+| Login route | PASS — rendered, no console errors |
+| Register route | PASS — rendered, no console errors |
+
+### Notes
+
+- The dry-run validates the local fixture contract for restaurant search data, review source attribution, source-backed AI summary, review-derived waiting signal, menu source rules, and UI guard wiring.
+- Search bar overlap risk was fixed by allowing the input to shrink and preventing the submit button from shrinking.
+- Authenticated home/search browser E2E is still gated by the no external DB/auth rule.
+
+---
+
+## 2026-05-16 — Search-App Redesign Pass
+
+### Commands
+
+```
+npm run check
+EXPO_NO_DOTENV=1 npm run web -- --port 8081
+```
+
+### Results
+
+| Check | Result |
+|---|---|
+| TypeScript | PASS |
+| Validators | PASS — 18/18 |
+| Fail cases | PASS — 7/7 detected |
+| App flow dry-run | PASS |
+| Login route | PASS — rendered |
+| Register route | PASS — rendered |
+| Console errors | PASS — none observed |
+
+### Notes
+
+- Home search was redesigned around a large search field, explicit CTA, quick filter chips, and a map/location affordance.
+- Search result cards now read more like ordinary search results: restaurant name, one-line summary, rating/review metadata, AI summary status, evidence count, and waiting/reservation chips only when data exists.
+- Detail summary now surfaces source/evidence count directly above the AI review summary.
+- Authenticated home/search browser E2E remains checkpoint-gated.
+
+---
+
+## 2026-05-16 — Local Polish + Mock Verification
+
+### Commands
+
+```
+npm run check
+EXPO_NO_DOTENV=1 npm run web -- --port 8081
+```
+
+### Results
+
+| Check | Result |
+|---|---|
+| TypeScript | PASS |
+| Validators | PASS — 18/18 |
+| Fail cases | PASS — 7/7 detected |
+| App flow dry-run | PASS |
+| `/login` | PASS — rendered |
+| `/register` | PASS — rendered |
+| `/mock-search` | PASS — rendered |
+| Console errors | PASS — none observed |
+
+### Notes
+
+- Added `/mock-search` as a local fixture-only preview route under the auth group so it is reachable without Supabase auth.
+- Mock results show the search-app hierarchy: large search, map affordance, quick chips, result cards, source/evidence counts, waiting/reservation chips, detail summary, and insufficient-evidence state.
+- `waitingSignal` display is guarded by label + evidence + integer `sourceCount >= 1`; invalid minute ranges are not displayed as time estimates.
+- All mock values are source/evidence-backed or shown as `정보 없음`.
