@@ -64,6 +64,13 @@ SAMPLE_DATA = {
     "review_summary_v2": {
         "positivePoints": ["국물이 진하다", "친절한 응대"],
         "negativePoints": ["웨이팅이 길다"],
+        "waitingSignal": {
+            "label": "주말 대기 길음",
+            "evidence": "주말 대기와 줄이 길다는 외부 리뷰 근거",
+            "minMinutes": 20,
+            "maxMinutes": 40,
+            "sourceCount": 2,
+        },
         "totalReviewCount": 8,
         "sources": [
             {"type": "naver_blog", "count": 5, "urls": ["https://blog.naver.com/x"]},
