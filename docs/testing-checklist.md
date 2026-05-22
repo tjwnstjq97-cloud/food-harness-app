@@ -198,6 +198,16 @@ npx expo start --clear
 | 1 | 검색창에 "명동" 입력 (엔터 없이) | 300ms 후 자동 검색 실행 |
 | 2 | 검색창에 한 글자만 입력 | 자동 검색 안 됨 (2글자 이상 필요) |
 | 3 | 검색 결과에서 카테고리 칩 탭 | 해당 카테고리만 필터링 |
+
+---
+
+## ✅ 운영/최적화 Preflight (Android/Expo, local-only)
+
+> 운영 기본기/성능 최적화 준비 체크리스트는 `docs/ANDROID_APP_OPERATIONS_CHECKLIST.md` 참고.
+
+- [ ] `npm run check`
+- [ ] `git diff --check`
+- [ ] (dotenv 차단) `EXPO_NO_DOTENV=1 npx expo lint`
 | 4 | 결과 30개 이상 시 "더 보기 ↓" 버튼 | 탭 시 다음 30개 추가 로드 |
 | 5 | 검색 결과 없을 때 | 추천 검색어 칩 표시 |
 | 6 | 힌트 화면 | 추천 검색어 칩 → 탭하면 검색 실행 |
