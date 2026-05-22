@@ -34,3 +34,4 @@ Use short dated entries.
 - Added project-local Android operations/optimization checklist at `docs/ANDROID_APP_OPERATIONS_CHECKLIST.md` based on central ops 기준. Included local-only Expo lint/bundle-analysis runbook and explicit forbidden actions for automation.
 - Linked the new ops preflight into `docs/testing-checklist.md`.
 - Verified local-only baseline: `npm run check` passed (typecheck + validators + dry-runs).
+- Added `summary_raw_free` validator to prevent raw provider body / LLM prompt/messages / credential-like strings from leaking into `review_summary_v2`. Updated fail-case coverage and verified `npm run check` still passes. (commit `899794f`)
