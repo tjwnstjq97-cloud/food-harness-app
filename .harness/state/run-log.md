@@ -35,3 +35,4 @@ Use short dated entries.
 - Linked the new ops preflight into `docs/testing-checklist.md`.
 - Verified local-only baseline: `npm run check` passed (typecheck + validators + dry-runs).
 - Added `summary_raw_free` validator to prevent raw provider body / LLM prompt/messages / credential-like strings from leaking into `review_summary_v2`. Updated fail-case coverage and verified `npm run check` still passes. (commit `899794f`)
+- Improved long search results list stability: memoized `SearchResultCard` and switched to id-based press handler to reduce per-item closure/object churn. Verified `npm run check` passes.
