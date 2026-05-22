@@ -36,3 +36,4 @@ Use short dated entries.
 - Verified local-only baseline: `npm run check` passed (typecheck + validators + dry-runs).
 - Added `summary_raw_free` validator to prevent raw provider body / LLM prompt/messages / credential-like strings from leaking into `review_summary_v2`. Updated fail-case coverage and verified `npm run check` still passes. (commit `899794f`)
 - Improved long search results list stability: memoized `SearchResultCard` and switched to id-based press handler to reduce per-item closure/object churn. Verified `npm run check` passes.
+- Strengthened `summary_raw_free` further to block PII(이메일/전화번호) 및 URL query token/secret 흔적이 `review_summary_v2`에 섞여 들어오는 것을 하네스 단계에서 차단. `npm run check` 재통과 확인. (commit `d1b013c`)
