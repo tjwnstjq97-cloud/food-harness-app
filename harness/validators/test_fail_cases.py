@@ -73,6 +73,19 @@ FAIL_CASES = [
             }
         },
     ),
+    (
+        "자동 요약에 이메일/전화번호(PII) 포함",
+        v_summary_raw_free,
+        {
+            "review_summary_v2": {
+                "positivePoints": ["연락은 test.user@example.com 으로 주세요"],
+                "negativePoints": [],
+                "totalReviewCount": 1,
+                "sources": [{"type": "naver_blog", "count": 1, "urls": []}],
+                "generatedAt": "2026-04-28T00:00:00Z",
+            }
+        },
+    ),
 ]
 
 print("=" * 50)

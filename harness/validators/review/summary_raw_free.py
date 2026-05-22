@@ -59,6 +59,11 @@ DISALLOWED_VALUE_PATTERNS: list[re.Pattern[str]] = [
     re.compile(r"\bBearer\s+[A-Za-z0-9._-]{10,}\b"),
     re.compile(r"\bAuthorization\s*:\s*", re.IGNORECASE),
     re.compile(r"\bx-api-key\b", re.IGNORECASE),
+    # PII (보수적): 요약/대표리뷰에 개인 식별/연락처가 섞여 들어오는 것을 차단
+    re.compile(r"\b[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{1,253}\.[A-Za-z]{2,}\b"),
+    re.compile(r"\b(?:\+?82[-.\s]?)?(?:0\d{1,2})[-.\s]?\d{3,4}[-.\s]?\d{4}\b"),
+    # URL query에 token/secret이 실리는 경우(보수적 키워드 기반)
+    re.compile(r"[?&](?:access_token|refresh_token|api_key|apikey|token|secret)=", re.IGNORECASE),
 ]
 
 MAX_POINT_LEN = 220
