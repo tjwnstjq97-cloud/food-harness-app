@@ -60,7 +60,7 @@
 `.env`를 읽지 않는 상태에서 lint를 돌려 “운영 전 기본 검사”를 고정합니다.
 
 ```bash
-EXPO_NO_DOTENV=1 npx expo lint
+npm run expo:lint
 ```
 
 ### 번들 분석 준비(문서/드라이런)
@@ -69,7 +69,7 @@ APK/AAB 빌드 없이도 “무거운 dependency/번들 크기”를 점검할 �
 
 ```bash
 # 필요 시: export 결과물은 로컬 산출물이며, 실제 설치/배포는 하지 않는다.
-EXPO_NO_DOTENV=1 EXPO_ATLAS=true npx expo export --platform android
+npm run expo:atlas:android
 ```
 
 ## 남은 체크포인트(자동작업에서 하지 않음)
