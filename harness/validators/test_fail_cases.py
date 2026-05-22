@@ -12,6 +12,7 @@ from region.region_logic import validate as v_region
 from review.review_source import validate as v_review
 from review.user_review_ownership import validate as v_user_review_ownership
 from review.summary_source_required import validate as v_summary_source
+from review.summary_raw_free import validate as v_summary_raw_free
 from reservation.reservation_check import validate as v_reservation
 
 FAIL_CASES = [
@@ -55,6 +56,20 @@ FAIL_CASES = [
                 "totalReviewCount": 5,
                 "sources": [],  # 출처 없음 — 실패해야 함
                 "generatedAt": "2026-04-28T00:00:00Z",
+            }
+        },
+    ),
+    (
+        "자동 요약에 prompt/raw 키 포함",
+        v_summary_raw_free,
+        {
+            "review_summary_v2": {
+                "positivePoints": ["맛있다"],
+                "negativePoints": [],
+                "totalReviewCount": 1,
+                "sources": [{"type": "naver_blog", "count": 1, "urls": []}],
+                "generatedAt": "2026-04-28T00:00:00Z",
+                "prompt": "SYSTEM: you are ...",  # raw 노출 금지 — 실패해야 함
             }
         },
     ),
